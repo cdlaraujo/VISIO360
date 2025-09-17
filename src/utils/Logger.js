@@ -1,64 +1,46 @@
 // src/utils/Logger.js
-// Níveis de log para controle de verbosidade
 const LOG_LEVELS = {
-    ERROR: 0,
-    WARN: 1,
-    INFO: 2,
-    DEBUG: 3,
-    TRACE: 4,
+    DEBUG: 0,
+    INFO: 1,
+    WARN: 2,
+    ERROR: 3,
 };
 
-// Configuração padrão do logger
-const config = {
-    level: LOG_LEVELS.INFO, // Nível padrão
-    sessionID: `session_${Date.now()}`,
-};
+// Defina o nível de log que você quer ver. INFO é um bom padrão.
+const CURRENT_LOG_LEVEL = LOG_LEVELS.INFO;
 
-const Logger = {
-    LEVELS: LOG_LEVELS,
+class Logger {
+    constructor(context) {
+        this.context = context;
+    }
 
-    /**
-     * Configura o logger com novas definições.
-     * @param {object} newConfig Objeto de configuração, ex: { level: LOG_LEVELS.DEBUG }
-     */
-    configure: (newConfig) => {
-        if (newConfig.level !== undefined && LOG_LEVELS[Object.keys(LOG_LEVELS)[newConfig.level]]) {
-            config.level = newConfig.level;
+    _log(level, message, ...args) {
+        if (LOG_LEVELS[level] < CURRENT_LOG_LEVEL) {
+            return;
         }
-        console.log(`[Logger] Configured. Level: ${Object.keys(LOG_LEVELS)[config.level]}`);
-    },
-
-    _log: (level, origin, message, data = {}) => {
-        if (level > config.level) return;
 
         const timestamp = new Date().toISOString();
-        const levelName = Object.keys(LOG_LEVELS).find(key => LOG_LEVELS[key] === level);
+        const levelName = `[${level}]`;
+        const contextName = `(${this.context})`;
 
-        const consoleMessage = `${timestamp} [${levelName}] (${origin.module}:${origin.function}) - ${message}`;
-        const dataIsEmpty = Object.keys(data).length === 0;
+        console.log(`${timestamp} ${levelName} ${contextName} - ${message}`, ...args);
+    }
 
-        switch (level) {
-            case LOG_LEVELS.ERROR:
-                dataIsEmpty ? console.error(consoleMessage) : console.error(consoleMessage, data);
-                break;
-            case LOG_LEVELS.WARN:
-                dataIsEmpty ? console.warn(consoleMessage) : console.warn(consoleMessage, data);
-                break;
-            case LOG_LEVELS.INFO:
-                dataIsEmpty ? console.info(consoleMessage) : console.info(consoleMessage, data);
-                break;
-            default:
-                dataIsEmpty ? console.log(consoleMessage) : console.log(consoleMessage, data);
-                break;
-        }
-    },
+    info(message, ...args) {
+        this._log('INFO', message, ...args);
+    }
 
-    // Funções de conveniência para cada nível de log
-    error: (origin, message, data) => Logger._log(LOG_LEVELS.ERROR, origin, message, data),
-    warn: (origin, message, data) => Logger._log(LOG_LEVELS.WARN, origin, message, data),
-    info: (origin, message, data) => Logger._log(LOG_LEVELS.INFO, origin, message, data),
-    debug: (origin, message, data) => Logger._log(LOG_LEVELS.DEBUG, origin, message, data),
-    trace: (origin, message, data) => Logger._log(LOG_LEVELS.TRACE, origin, message, data),
-};
+    warn(message, ...args) {
+        this._log('WARN', message, ...args);
+    }
+
+    error(message, ...args) {
+        this._log('ERROR', message, ...args);
+    }
+
+    debug(message, ...args) {
+        this._log('DEBUG', message, ...args);
+    }
+}
 
 export default Logger;

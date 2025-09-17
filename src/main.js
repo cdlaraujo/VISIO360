@@ -10,6 +10,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const viewer = new Visio360Viewer(container);
         viewer.init();
     } else {
-        console.error('Fatal: Application container #app not found.');
+        console.error('Fatal: Contêiner da aplicação #app não encontrado.');
     }
 });

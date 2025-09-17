@@ -1,75 +1,43 @@
-// src/core/StateManager.js
+// src/modules/SceneManager.js
+import * as THREE from 'three';
+import TWEEN from '@tweenjs/tween.js';
 import Logger from '../utils/Logger.js';
-import { deepClone, diff } from '../utils/Utils.js';
 
-export class StateManager {
-    constructor() {
-        this.origin = { module: 'StateManager', function: 'constructor' };
-        // O estado inicial da aplicação
-        this.state = {
-            // Core Three.js
-            scene: null,
-            camera: null,
-            renderer: null,
-            
-            // Modelo e Cena
-            targetModel: null,
-            pivot: null,
-            
-            // Interação
-            interactionState: 'NONE', // NONE, PENDING, PANNING, ORBITING
-            
-            // Ferramentas
-            activeTool: null, // 'distance', 'area', 'annotate', 'delete'
-            allMeasurements: [],
-            currentPoints: [],
-        };
+export default class SceneManager {
+    constructor({ state, eventBus }) {
+        this.logger = new Logger('SceneManager');
+        this.state = state;
+        this.eventBus = eventBus;
 
-        this.subscribers = {}; // Armazena callbacks para mudanças em chaves específicas
-        Logger.debug(this.origin, 'StateManager initialized.', { initialState: deepClone(this.state) });
-    }
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x1a1a1a);
 
-    /**
-     * Retorna uma cópia do estado atual para prevenir mutações diretas.
-     * @returns {object} O estado completo da aplicação.
-     */
-    get() {
-        return { ...this.state };
-    }
-
-    /**
-     * Atualiza o estado com novas informações e notifica os assinantes.
-     * @param {object} updates Um objeto com as chaves do estado a serem atualizadas.
-     */
-    set(updates) {
-        const oldState = { ...this.state };
+        this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
         
-        // Atualiza o estado
-        this.state = { ...this.state, ...updates };
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
 
-        const stateDiff = diff(oldState, this.state);
-        if (Object.keys(stateDiff).length > 0) {
-            Logger.debug({ ...this.origin, function: 'set' }, 'State updated.', { diff: stateDiff });
-            
-            // Notifica os assinantes sobre as chaves que mudaram
-            Object.keys(stateDiff).forEach(key => {
-                if (this.subscribers[key]) {
-                    this.subscribers[key].forEach(callback => callback(this.state[key]));
-                }
-            });
-        }
+        const ambientLight = new THREE.AmbientLight(0xffffff, 3);
+        this.scene.add(ambientLight);
+
+        window.addEventListener('resize', this.onWindowResize.bind(this));
+        
+        this.logger.info('SceneManager initialized.');
     }
 
-    /**
-     * Assina mudanças em uma chave específica do estado.
-     * @param {string} key A chave do estado para observar.
-     * @param {function} callback A função a ser chamada quando a chave mudar.
-     */
-    subscribe(key, callback) {
-        if (!this.subscribers[key]) {
-            this.subscribers[key] = [];
-        }
-        this.subscribers[key].push(callback);
-        Logger.trace({ ...this.origin, function: 'subscribe' }, `New subscriber for state key: '${key}'`);
+    onWindowResize() {
+        this.camera.aspect = window.innerWidth / window.innerHeight;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.logger.info('Window resized.');
+    }
+
+    update(delta) {
+        TWEEN.update();
+    }
+    
+    getDomElement() {
+        return this.renderer.domElement;
     }
 }
