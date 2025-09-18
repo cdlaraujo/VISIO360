@@ -1,46 +1,70 @@
-// src/utils/Logger.js
-const LOG_LEVELS = {
-    DEBUG: 0,
-    INFO: 1,
-    WARN: 2,
-    ERROR: 3,
-};
-
-// Defina o nível de log que você quer ver. INFO é um bom padrão.
-const CURRENT_LOG_LEVEL = LOG_LEVELS.INFO;
-
-class Logger {
-    constructor(context) {
-        this.context = context;
+/**
+ * @module Logger
+ * @description
+ * Provides a centralized logging system for the entire application.
+ * This helps in debugging and understanding the application flow.
+ */
+export class Logger {
+    /**
+     * @param {string} logLevel - The minimum log level to display ('DEBUG', 'INFO', 'WARN', 'ERROR').
+     */
+    constructor(logLevel = 'INFO') {
+        this.logLevel = logLevel;
+        this.levels = {
+            'DEBUG': 1,
+            'INFO': 2,
+            'WARN': 3,
+            'ERROR': 4,
+        };
     }
 
-    _log(level, message, ...args) {
-        if (LOG_LEVELS[level] < CURRENT_LOG_LEVEL) {
-            return;
+    /**
+     * Internal log method to handle message formatting and level checking.
+     * @param {string} level - The level of the log message.
+     * @param {string} message - The main log message.
+     * @param {*} [data=''] - Optional data to log alongside the message.
+     * @private
+     */
+    _log(level, message, data = '') {
+        if (this.levels[level] >= this.levels[this.logLevel]) {
+            const timestamp = new Date().toLocaleTimeString();
+            console.log(`[${level}] [${timestamp}] - ${message}`, data);
         }
-
-        const timestamp = new Date().toISOString();
-        const levelName = `[${level}]`;
-        const contextName = `(${this.context})`;
-
-        console.log(`${timestamp} ${levelName} ${contextName} - ${message}`, ...args);
     }
 
-    info(message, ...args) {
-        this._log('INFO', message, ...args);
+    /**
+     * Logs a debug message. Use for detailed diagnostic information.
+     * @param {string} message - The message to log.
+     * @param {*} [data] - Optional data.
+     */
+    debug(message, data) {
+        this._log('DEBUG', message, data);
     }
 
-    warn(message, ...args) {
-        this._log('WARN', message, ...args);
+    /**
+     * Logs an info message. Use for general application flow information.
+     * @param {string} message - The message to log.
+     * @param {*} [data] - Optional data.
+     */
+    info(message, data) {
+        this._log('INFO', message, data);
     }
 
-    error(message, ...args) {
-        this._log('ERROR', message, ...args);
+    /**
+     * Logs a warning message. Use for potential issues that don't break the app.
+     * @param {string} message - The message to log.
+     * @param {*} [data] - Optional data.
+     */
+    warn(message, data) {
+        this._log('WARN', message, data);
     }
 
-    debug(message, ...args) {
-        this._log('DEBUG', message, ...args);
+    /**
+     * Logs an error message. Use for critical failures.
+     * @param {string} message - The message to log.
+     * @param {*} [data] - Optional data.
+     */
+    error(message, data) {
+        this._log('ERROR', message, data);
     }
 }
-
-export default Logger;

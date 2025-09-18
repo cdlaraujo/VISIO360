@@ -1,15 +1,22 @@
-// src/main.js
-import './style.css';
-import { Visio360Viewer } from './core/Visio360Viewer.js';
+/**
+ * @file main.js
+ * @description Application Entry Point. This is the first file to be executed.
+ */
+import { App } from './core/App.js';
 
+// Wait for the DOM to be fully loaded before starting the application
 document.addEventListener('DOMContentLoaded', () => {
-    const container = document.getElementById('app');
+    const appContainer = document.getElementById('app');
     
-    if (container) {
-        // Toda a complexidade agora está encapsulada dentro do Viewer.
-        const viewer = new Visio360Viewer(container);
-        viewer.init();
+    if (appContainer) {
+        try {
+            const app = new App(appContainer);
+            app.start();
+        } catch (error) {
+            console.error('Fatal Error during app initialization:', error);
+            appContainer.innerHTML = '<p style="color: red; text-align: center;">An error occurred. Please check the console.</p>';
+        }
     } else {
-        console.error('Fatal: Contêiner da aplicação #app não encontrado.');
+        console.error('Fatal Error: Application container #app not found in the DOM.');
     }
 });

@@ -1,46 +1,26 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VISIO 360 - 3D Viewer</title>
-    <!-- [CORREÇÃO] Referencia o novo arquivo de estilos -->
-    <link rel="stylesheet" href="src/style.css">
+    <title>Visio360 - Visualizador 3D</title>
+    <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
-
     <div id="app"></div>
 
-    <div id="loading-overlay" class="overlay">
-        <div class="loading-box">
-            <div id="loading-label">Loading... 0%</div>
-            <div class="progress-bar-container">
-                <div id="progress-bar"></div>
+    <div id="ui-container">
+        <h1>Visio360 Viewer</h1>
+        <div class="input-wrapper">
+            <label for="model-input" class="custom-file-upload">Carregar Modelo</label>
+            <input type="file" id="model-input" accept=".ply,.gltf,.glb,.obj" />
+        </div>
+        <p class="hint">Selecione um arquivo para visualizar.</p>
+
+        <div class="tools-section">
+            <h2>Ferramentas</h2>
+            <button id="measure-tool-btn" class="tool-btn">Medir Distância</button>
             </div>
-        </div>
-    </div>
-    
-    <div class="ui-controls">
-        <div class="top-controls">
-            <label for="file-input" class="control-button file-label">Carregar Modelo</label>
-            <input type="file" id="file-input" accept=".glb,.gltf,.obj,.stl,.ply" style="display: none;">
-        </div>
-
-        <!-- [CORREÇÃO] Adiciona os botões de ferramentas que estavam faltando -->
-        <div id="tools-controls" class="tools-container" style="display: none;">
-            <button id="btn-distance" class="control-button" data-mode="distance">Distância</button>
-            <button id="btn-area" class="control-button" data-mode="area">Área</button>
-            <button id="btn-annotate" class="control-button" data-mode="annotate">Anotar</button>
-            <button id="btn-delete" class="control-button" data-mode="delete">Excluir</button>
-        </div>
-    </div>
-    
-    <div id="status-bar" class="status-bar">
-        Carregue um modelo para começar.
     </div>
 
-    <div id="debug-dashboard"></div>
-
-    <script type="module" src="src/main.js"></script>
+    <script type="module" src="/src/main.js"></script>
 </body>
 </html>

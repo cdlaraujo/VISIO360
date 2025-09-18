@@ -1,43 +1,26 @@
-// src/modules/SceneManager.js
-import * as THREE from 'three';
-import TWEEN from '@tweenjs/tween.js';
-import Logger from '../utils/Logger.js';
-
-export default class SceneManager {
-    constructor({ state, eventBus }) {
-        this.logger = new Logger('SceneManager');
-        this.state = state;
-        this.eventBus = eventBus;
-
-        this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x1a1a1a);
-
-        this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000);
-        
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
-        this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-
-        const ambientLight = new THREE.AmbientLight(0xffffff, 3);
-        this.scene.add(ambientLight);
-
-        window.addEventListener('resize', this.onWindowResize.bind(this));
-        
-        this.logger.info('SceneManager initialized.');
+// src/core/StateManager.js
+export default class StateManager {
+    constructor(initialState = {}) {
+        this.state = { ...initialState };
     }
 
-    onWindowResize() {
-        this.camera.aspect = window.innerWidth / window.innerHeight;
-        this.camera.updateProjectionMatrix();
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.logger.info('Window resized.');
+    /**
+     * Obtém o estado atual ou uma propriedade específica.
+     * @param {string} [key] - A chave da propriedade a ser obtida. Se omitida, retorna todo o objeto de estado.
+     * @returns {*} O estado completo ou o valor da propriedade solicitada.
+     */
+    get(key) {
+        if (key) {
+            return this.state[key];
+        }
+        return this.state;
     }
 
-    update(delta) {
-        TWEEN.update();
-    }
-    
-    getDomElement() {
-        return this.renderer.domElement;
+    /**
+     * Define uma ou mais propriedades no estado.
+     * @param {object} newState - Um objeto contendo as chaves e valores a serem atualizados.
+     */
+    set(newState) {
+        this.state = { ...this.state, ...newState };
     }
 }

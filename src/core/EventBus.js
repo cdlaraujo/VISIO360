@@ -1,61 +1,57 @@
-// src/core/EventBus.js
-import Logger from '../utils/Logger.js';
-
+/**
+ * @class EventBus
+ * @description Fornece um sistema de comunicação desacoplado para toda a aplicação.
+ * Módulos podem emitir eventos e ouvir eventos sem se conhecerem diretamente.
+ */
 export class EventBus {
-    constructor() {
-        this.listeners = {};
-        this.origin = { module: 'EventBus', function: 'constructor' };
-        Logger.debug(this.origin, 'EventBus created.');
+    constructor(logger) {
+        this.events = {};
+        this.logger = logger;
     }
 
     /**
-     * Assina um evento.
-     * @param {string} eventName O nome do evento.
-     * @param {function} callback A função a ser chamada quando o evento for emitido.
-     * @returns {function} Uma função para cancelar a inscrição.
+     * Registra um ouvinte para um evento específico.
+     * @param {string} eventName - O nome do evento a ser ouvido.
+     * @param {Function} callback - A função a ser executada quando o evento for emitido.
      */
     on(eventName, callback) {
-        if (!this.listeners[eventName]) {
-            this.listeners[eventName] = [];
+        if (!this.events[eventName]) {
+            this.events[eventName] = [];
         }
-        this.listeners[eventName].push(callback);
-        Logger.trace({ ...this.origin, function: 'on' }, `Listener registered for event: '${eventName}'`);
-
-        // Retorna uma função de "unsubscribe" para fácil limpeza
-        return () => {
-            this.off(eventName, callback);
-            Logger.trace({ ...this.origin, function: 'on' }, `Listener for '${eventName}' unregistered via unsubscribe function.`);
-        };
+        this.events[eventName].push(callback);
+        this.logger?.debug(`EventBus: Listener registered for event "${eventName}".`);
     }
 
     /**
-     * Cancela a assinatura de um evento.
-     * @param {string} eventName O nome do evento.
-     * @param {function} callback A função de callback a ser removida.
+     * Emite um evento, acionando todos os seus ouvintes registrados.
+     * @param {string} eventName - O nome do evento a ser emitido.
+     * @param {*} [payload] - Dados opcionais a serem passados para os ouvintes.
      */
-    off(eventName, callback) {
-        if (!this.listeners[eventName]) return;
+    emit(eventName, payload) {
+        this.logger?.debug(`EventBus: Emitting event "${eventName}".`, payload);
+        if (this.events[eventName]) {
+            this.events[eventName].forEach(callback => {
+                try {
+                    callback(payload);
+                } catch (error) {
+                    this.logger?.error(`EventBus: Error in listener for event "${eventName}".`, error);
+                }
+            });
+        }
+    }
 
-        this.listeners[eventName] = this.listeners[eventName].filter(
-            listener => listener !== callback
+    /**
+     * Remove um ouvinte de um evento.
+     * @param {string} eventName - O nome do evento.
+     * @param {Function} callbackToRemove - A função de callback específica a ser removida.
+     */
+    off(eventName, callbackToRemove) {
+        if (!this.events[eventName]) {
+            return;
+        }
+        this.events[eventName] = this.events[eventName].filter(
+            callback => callback !== callbackToRemove
         );
-    }
-
-    /**
-     * Emite um evento, chamando todos os callbacks assinados.
-     * @param {string} eventName O nome do evento a ser emitido.
-     * @param {object} [payload={}] Os dados a serem passados para os callbacks.
-     */
-    emit(eventName, payload = {}) {
-        Logger.debug({ ...this.origin, function: 'emit' }, `Event '${eventName}' emitted.`, { payload });
-        if (!this.listeners[eventName]) return;
-
-        this.listeners[eventName].forEach(callback => {
-            try {
-                callback(payload);
-            } catch (error) {
-                Logger.error({ ...this.origin, function: 'emit' }, `Error in event listener for '${eventName}'`, { error });
-            }
-        });
+        this.logger?.debug(`EventBus: Listener removed for event "${eventName}".`);
     }
 }
