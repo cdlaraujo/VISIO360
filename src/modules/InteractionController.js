@@ -13,72 +13,76 @@ export class InteractionController {
         this.eventBus = eventBus;
         this.controls = null;
         
-        // Propriedades para o zoom focado
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
-        this.intersectableObject = null; // Armazena o modelo 3D atual
+        this.intersectableObject = null;
 
         this._initializeControls();
         this._setupEventListeners();
     }
 
-    /**
-     * Inicializa os controles de órbita da câmera.
-     * @private
-     */
     _initializeControls() {
         this.controls = new OrbitControls(this.camera, this.domElement);
         this.controls.enableDamping = true;
         this.logger.info('InteractionController: OrbitControls inicializado.');
     }
 
-    /**
-     * Configura os listeners de eventos.
-     * @private
-     */
     _setupEventListeners() {
         this.eventBus.on('app:update', () => this.update());
         this.eventBus.on('camera:focus', (payload) => this.focusOnObject(payload.object));
-
-        // Ouve quando um novo modelo é carregado para saber com qual objeto interagir
         this.eventBus.on('model:loaded', (payload) => {
             this.intersectableObject = payload.model;
             this.logger.info('InteractionController: Novo objeto de interseção definido.');
         });
-
-        // Adiciona o listener para o scroll (wheel) do mouse
         this.domElement.addEventListener('wheel', this._onMouseWheel.bind(this), { passive: false });
     }
     
     /**
-     * Lida com o evento de scroll do mouse para implementar o zoom focado.
+     * Lida com o evento de scroll do mouse para implementar o zoom focado e estável.
      * @param {WheelEvent} event
      * @private
      */
     _onMouseWheel(event) {
-        if (!this.intersectableObject) return;
-
         event.preventDefault();
 
-        // Calcula a posição do mouse em coordenadas normalizadas (-1 a +1)
+        // **CORREÇÃO AQUI:** Invertemos o sinal de event.deltaY para que o zoom siga a direção natural do scroll.
+        // Rolar para cima (deltaY negativo) -> zoom in (escala < 1)
+        // Rolar para baixo (deltaY positivo) -> zoom out (escala > 1)
+        const dollyScale = Math.pow(0.95, -event.deltaY * 0.05);
+
+        // Ponto de referência atual da câmera
+        const target = this.controls.target;
+        const camera = this.controls.object;
+        
+        // Vetor do offset da câmera em relação ao alvo atual
+        const cameraOffset = new THREE.Vector3().subVectors(camera.position, target);
+
+        // Calcula a nova posição do alvo, movendo-o em direção ao ponto sob o cursor
         this.mouse.x = (event.clientX / this.domElement.clientWidth) * 2 - 1;
         this.mouse.y = -(event.clientY / this.domElement.clientHeight) * 2 + 1;
+        this.raycaster.setFromCamera(this.mouse, camera);
 
-        this.raycaster.setFromCamera(this.mouse, this.camera);
+        // Projeta um ponto em um plano que passa pelo alvo atual. Isso cria um ponto focal estável.
+        const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(
+            camera.getWorldDirection(new THREE.Vector3()),
+            target
+        );
+        const pointUnderCursor = new THREE.Vector3();
+        this.raycaster.ray.intersectPlane(plane, pointUnderCursor);
 
-        // Verifica a interseção apenas com o modelo carregado
-        const intersects = this.raycaster.intersectObject(this.intersectableObject, true);
+        // Interpola o alvo atual em direção ao ponto sob o cursor
+        const newTarget = target.clone().lerp(pointUnderCursor, 1 - dollyScale);
+        
+        // Calcula a nova posição da câmera, mantendo o offset escalado em relação ao novo alvo
+        const newCameraPosition = newTarget.clone().add(cameraOffset.multiplyScalar(dollyScale));
 
-        if (intersects.length > 0) {
-            // Se houver uma interseção, atualiza o alvo dos controles para esse ponto
-            this.controls.target.copy(intersects[0].point);
-        }
+        // Aplica as novas posições
+        camera.position.copy(newCameraPosition);
+        this.controls.target.copy(newTarget);
+        
+        this.controls.update();
     }
 
-    /**
-     * Foca a câmera no centro de um objeto 3D.
-     * @param {THREE.Object3D} object - O objeto a ser focado.
-     */
     focusOnObject(object) {
         const box = new THREE.Box3().setFromObject(object);
         const center = box.getCenter(new THREE.Vector3());
@@ -87,9 +91,6 @@ export class InteractionController {
         this.logger.info('InteractionController: Alvo da câmera atualizado para o centro do objeto.');
     }
 
-    /**
-     * Método de atualização chamado a cada quadro.
-     */
     update() {
         this.controls.update();
     }

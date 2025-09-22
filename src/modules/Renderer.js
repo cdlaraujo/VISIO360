@@ -24,8 +24,11 @@ export class Renderer {
         
         const fov = 50;
         const aspect = this.container.clientWidth / this.container.clientHeight;
-        const near = 0.1;
-        const far = 2000;
+        
+        // **CORREÇÃO AQUI:** Diminuímos o 'near' plane para permitir um zoom muito mais próximo.
+        const near = 0.001; 
+        const far = 10000; // Aumentamos o 'far' para garantir que modelos grandes não sejam cortados.
+
         this.camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
         this.camera.position.set(0, 5, 10);
 
@@ -73,13 +76,11 @@ export class Renderer {
     addObject(object) {
         if (object) {
             // Limpa a cena antes de adicionar um novo objeto para evitar sobreposição
-            while(this.scene.children.length > 0){ 
-                const child = this.scene.children[0];
-                if(child.isMesh) {
+            // Percorre ao contrário para evitar problemas ao remover itens da lista que está sendo iterada
+            for (let i = this.scene.children.length - 1; i >= 0; i--) {
+                const child = this.scene.children[i];
+                if (child.isMesh) {
                     this.scene.remove(child);
-                } else {
-                    // Preserva luzes, helpers, etc.
-                    break;
                 }
             }
             this.scene.add(object);
@@ -98,7 +99,10 @@ export class Renderer {
         const fov = this.camera.fov * (Math.PI / 180);
         let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
         cameraZ *= 1.5; // Fator de distância
-        this.camera.position.set(center.x, center.y, center.z + cameraZ);
+        
+        // Garante que a câmera não fique dentro de modelos muito pequenos
+        const minZ = box.min.z || 0.1;
+        this.camera.position.set(center.x, center.y, center.z + Math.max(cameraZ, minZ));
         
         // Emite um evento para que o InteractionController atualize seu alvo
         this.eventBus.emit('camera:focus', { object });
