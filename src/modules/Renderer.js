@@ -1,9 +1,8 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 /**
  * @class Renderer
- * @description Gerencia a renderização com THREE.js e reage a eventos da aplicação.
+ * @description Gerencia a configuração da cena e a renderização com THREE.js.
  */
 export class Renderer {
     constructor(container, logger, eventBus) {
@@ -14,7 +13,6 @@ export class Renderer {
         this.scene = null;
         this.camera = null;
         this.webglRenderer = null;
-        this.controls = null;
     }
 
     /**
@@ -36,12 +34,8 @@ export class Renderer {
         this.webglRenderer.setPixelRatio(window.devicePixelRatio);
         this.container.appendChild(this.webglRenderer.domElement);
         
-        this.controls = new OrbitControls(this.camera, this.webglRenderer.domElement);
-        this.controls.enableDamping = true;
-        
         this._setupLights();
 
-        // CORREÇÃO: Usando cores mais claras para o grid para garantir visibilidade.
         const gridHelper = new THREE.GridHelper(100, 100, 0xcccccc, 0x777777);
         this.scene.add(gridHelper);
         
@@ -49,20 +43,23 @@ export class Renderer {
         
         this._setupEventListeners();
 
-        this.logger.info('Renderer: Initialized and listening for events.');
+        this.logger.info('Renderer: Inicializado.');
+        
+        // Retorna instâncias essenciais para serem usadas por outros módulos
+        return {
+            camera: this.camera,
+            domElement: this.webglRenderer.domElement
+        };
     }
 
-    /**
-     * Centraliza o registro de todos os ouvintes de eventos para este módulo.
-     * @private
-     */
     _setupEventListeners() {
         this.eventBus.on('model:loaded', (payload) => {
             this.addObject(payload.model);
-            this.focusOnObject(payload.model);
+            this.focusOnObject(payload.model); // Continua focando a câmera na carga
         });
 
-        this.eventBus.on('app:update', () => this.update());
+        // O Renderer agora só precisa atualizar a si mesmo no loop do app
+        this.eventBus.on('app:update', () => this.render());
     }
 
     _setupLights() {
@@ -75,28 +72,41 @@ export class Renderer {
 
     addObject(object) {
         if (object) {
+            // Limpa a cena antes de adicionar um novo objeto para evitar sobreposição
+            while(this.scene.children.length > 0){ 
+                const child = this.scene.children[0];
+                if(child.isMesh) {
+                    this.scene.remove(child);
+                } else {
+                    // Preserva luzes, helpers, etc.
+                    break;
+                }
+            }
             this.scene.add(object);
+            this.logger.info(`Renderer: Objeto "${object.name}" adicionado à cena.`);
         } else {
-            this.logger.warn('Renderer: Attempted to add an invalid object to the scene.');
+            this.logger.warn('Renderer: Tentativa de adicionar um objeto inválido à cena.');
         }
     }
     
     focusOnObject(object) {
+        // Lógica de posicionamento inicial da câmera ao carregar um modelo
         const box = new THREE.Box3().setFromObject(object);
         const center = box.getCenter(new THREE.Vector3());
         const size = box.getSize(new THREE.Vector3());
         const maxDim = Math.max(size.x, size.y, size.z);
         const fov = this.camera.fov * (Math.PI / 180);
         let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
-        cameraZ *= 1.5;
+        cameraZ *= 1.5; // Fator de distância
         this.camera.position.set(center.x, center.y, center.z + cameraZ);
-        this.controls.target.copy(center);
-        this.controls.update();
-        this.logger.info('Renderer: Camera focused on object.', { center, size });
+        
+        // Emite um evento para que o InteractionController atualize seu alvo
+        this.eventBus.emit('camera:focus', { object });
+
+        this.logger.info('Renderer: Posição da câmera ajustada para o novo objeto.');
     }
 
-    update() {
-        this.controls.update();
+    render() {
         this.webglRenderer.render(this.scene, this.camera);
     }
     
@@ -104,7 +114,5 @@ export class Renderer {
         this.camera.aspect = this.container.clientWidth / this.container.clientHeight;
         this.camera.updateProjectionMatrix();
         this.webglRenderer.setSize(this.container.clientWidth, this.container.clientHeight);
-        // Não é mais necessário logar isso em modo INFO
-        // this.logger.debug('Renderer: Window resized.');
     }
 }
