@@ -1,5 +1,7 @@
+// src/app/App.js
 import { Logger } from '../utils/Logger.js';
 import { EventBus } from './EventBus.js';
+import { SceneManager } from '../core/SceneManager.js'; // Importar o novo módulo
 import { Renderer } from '../core/Renderer.js';
 import { ModelLoader } from '../core/ModelLoader.js';
 import { UIManager } from '../ui/UIManager.js';
@@ -22,25 +24,30 @@ export class App {
         this.eventBus = new EventBus(this.logger);
 
         // --- Módulos da Aplicação ---
-        this.renderer = new Renderer(this.container, this.logger, this.eventBus);
+        this.sceneManager = new SceneManager(this.logger, this.eventBus);
+        
+        // O Renderer será inicializado após o SceneManager
+        this.renderer = null; 
         this.modelLoader = new ModelLoader(this.logger, this.eventBus);
         this.uiManager = new UIManager(this.logger, this.eventBus);
         this.toolController = new ToolController(this.logger, this.eventBus);
-        
-        // O InteractionController será inicializado após o Renderer
         this.interactionController = null; 
     }
 
     start() {
         this.logger.info('App: Iniciando a aplicação...');
         
-        // O Renderer.initialize() agora retorna a câmera e o elemento DOM
+        // 1. Inicializa o SceneManager e obtém a cena
+        const { scene } = this.sceneManager.initialize();
+
+        // 2. Inicializa o Renderer, passando a cena
+        this.renderer = new Renderer(this.container, scene, this.logger, this.eventBus);
         const rendererComponents = this.renderer.initialize();
         
+        // 3. Inicializa os outros módulos como antes
         this.modelLoader.initialize();
         this.uiManager.initialize();
 
-        // Agora, inicializamos o InteractionController com as dependências do Renderer
         this.interactionController = new InteractionController(
             rendererComponents.camera,
             rendererComponents.domElement,
@@ -53,9 +60,6 @@ export class App {
 
     _animate() {
         requestAnimationFrame(this._animate.bind(this));
-        
-        // O evento 'app:update' agora é ouvido pelo Renderer e pelo InteractionController,
-        // cada um atualizando seu próprio estado de forma independente.
         this.eventBus.emit('app:update'); 
     }
 }

@@ -2,7 +2,7 @@
  * @file main.js
  * @description Application Entry Point. This is the first file to be executed.
  */
-import { App } from './App.js';
+import { App } from './app/App.js';
 
 // Wait for the DOM to be fully loaded before starting the application
 document.addEventListener('DOMContentLoaded', () => {
