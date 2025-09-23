@@ -1,5 +1,5 @@
 // src/config.js
-import Logger from './utils/Logger.js';
+import Logger from '../utils/Logger.js';
 
 // Níveis disponíveis: 'ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE'
 // Altere esta linha para controlar a verbosidade dos logs em toda a aplicação.

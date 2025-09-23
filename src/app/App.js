@@ -1,10 +1,10 @@
 import { Logger } from '../utils/Logger.js';
 import { EventBus } from './EventBus.js';
-import { Renderer } from '../modules/Renderer.js';
-import { ModelLoader } from '../modules/ModelLoader.js';
-import { UIManager } from '../modules/UIManager.js';
-import { ToolController } from '../modules/ToolController.js';
-import { InteractionController } from '../modules/InteractionController.js'; // Importar o novo módulo
+import { Renderer } from '../core/Renderer.js';
+import { ModelLoader } from '../core/ModelLoader.js';
+import { UIManager } from '../ui/UIManager.js';
+import { ToolController } from '../ui/ToolController.js';
+import { InteractionController } from '../core/InteractionController.js';
 
 /**
  * @class App

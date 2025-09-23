@@ -49,12 +49,48 @@ h1 {
     text-align: center;
 }
 
+.input-wrapper {
+    margin-bottom: 15px;
+}
+
+.tools-section {
+    margin-top: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.tool-btn {
+    flex-grow: 1;
+    padding: 12px 0;
+    border-radius: 8px;
+    background-color: #555;
+    color: white;
+    text-align: center;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+    transition: background-color 0.3s ease, transform 0.1s ease;
+}
+
+.tool-btn:hover {
+    background-color: #777;
+}
+
+.tool-btn.active {
+    background-color: #007bff;
+}
+
+.tool-btn.active:hover {
+    background-color: #0056b3;
+}
+
 /* Esconde o input de arquivo padrão */
 input[type="file"] {
     display: none;
 }
 
-/* Estilo do botão customizado */
+/* Estilo do botão customizado para upload */
 .custom-file-upload {
     display: block;
     width: 100%;
@@ -74,4 +110,18 @@ input[type="file"] {
 
 .custom-file-upload:active {
     transform: scale(0.98);
+}
+
+#info-panel {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #555;
+}
+
+.info-text {
+    font-size: 1.1em;
+    font-weight: bold;
+    color: #00d4ff;
+    text-align: center;
+    margin: 5px 0;
 }
