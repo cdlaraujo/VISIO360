@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 /**
  * @class InteractionController
- * @description Gerencia todas as interações do usuário com a cena 3D, como controles de câmera e picking de objetos.
+ * @description Gerencia todas as interações do usuário com a cena 3D, incluindo controles de câmera e picking de objetos.
  */
 export class InteractionController {
     constructor(camera, domElement, logger, eventBus) {
@@ -15,7 +15,8 @@ export class InteractionController {
         
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
-        this.intersectableObject = null;
+        this.intersectableObjects = [];
+        this.currentTool = 'none';
 
         this._initializeControls();
         this._setupEventListeners();
@@ -31,10 +32,63 @@ export class InteractionController {
         this.eventBus.on('app:update', () => this.update());
         this.eventBus.on('camera:focus', (payload) => this.focusOnObject(payload.object));
         this.eventBus.on('model:loaded', (payload) => {
-            this.intersectableObject = payload.model;
+            this.intersectableObjects = [payload.model];
             this.logger.info('InteractionController: Novo objeto de interseção definido.');
         });
+        this.eventBus.on('tool:changed', (payload) => {
+            this.currentTool = payload.activeTool;
+            this._updateCursor();
+        });
+
+        // Eventos do mouse para picking
+        this.domElement.addEventListener('click', this._onClick.bind(this));
         this.domElement.addEventListener('wheel', this._onMouseWheel.bind(this), { passive: false });
+        this.domElement.addEventListener('mousemove', this._onMouseMove.bind(this));
+
+        // Evento ESC para finalizar medições de área
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && this.currentTool === 'area') {
+                this.eventBus.emit('measurement:area:finish');
+            }
+        });
+    }
+
+    _onClick(event) {
+        // Só processa cliques se uma ferramenta de medição estiver ativa
+        if (this.currentTool === 'none') return;
+
+        event.preventDefault();
+        this._updateMousePosition(event);
+
+        this.raycaster.setFromCamera(this.mouse, this.camera);
+        const intersects = this.raycaster.intersectObjects(this.intersectableObjects, true);
+
+        if (intersects.length > 0) {
+            const point = intersects[0].point;
+            this.eventBus.emit('measurement:point:selected', {
+                point: point.clone(),
+                tool: this.currentTool
+            });
+            this.logger.debug(`InteractionController: Ponto selecionado para ferramenta "${this.currentTool}".`);
+        }
+    }
+
+    _onMouseMove(event) {
+        this._updateMousePosition(event);
+    }
+
+    _updateMousePosition(event) {
+        const rect = this.domElement.getBoundingClientRect();
+        this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    _updateCursor() {
+        if (this.currentTool === 'measure' || this.currentTool === 'area') {
+            this.domElement.style.cursor = 'crosshair';
+        } else {
+            this.domElement.style.cursor = 'default';
+        }
     }
     
     /**
@@ -45,9 +99,7 @@ export class InteractionController {
     _onMouseWheel(event) {
         event.preventDefault();
 
-        // **CORREÇÃO AQUI:** Invertemos o sinal de event.deltaY para que o zoom siga a direção natural do scroll.
-        // Rolar para cima (deltaY negativo) -> zoom in (escala < 1)
-        // Rolar para baixo (deltaY positivo) -> zoom out (escala > 1)
+        // Inverte o sinal de event.deltaY para que o zoom siga a direção natural do scroll
         const dollyScale = Math.pow(0.95, -event.deltaY * 0.05);
 
         // Ponto de referência atual da câmera
@@ -58,11 +110,10 @@ export class InteractionController {
         const cameraOffset = new THREE.Vector3().subVectors(camera.position, target);
 
         // Calcula a nova posição do alvo, movendo-o em direção ao ponto sob o cursor
-        this.mouse.x = (event.clientX / this.domElement.clientWidth) * 2 - 1;
-        this.mouse.y = -(event.clientY / this.domElement.clientHeight) * 2 + 1;
+        this._updateMousePosition(event);
         this.raycaster.setFromCamera(this.mouse, camera);
 
-        // Projeta um ponto em um plano que passa pelo alvo atual. Isso cria um ponto focal estável.
+        // Projeta um ponto em um plano que passa pelo alvo atual
         const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(
             camera.getWorldDirection(new THREE.Vector3()),
             target

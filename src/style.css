@@ -23,13 +23,15 @@ body {
     top: 20px;
     left: 20px;
     z-index: 10;
-    background-color: rgba(40, 40, 40, 0.85);
+    background-color: rgba(40, 40, 40, 0.92);
     padding: 20px;
     border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(10px);
-    width: 300px;
+    width: 320px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
 }
 
 h1 {
@@ -47,6 +49,7 @@ h1 {
     margin-top: 15px;
     margin-bottom: 0;
     text-align: center;
+    line-height: 1.4;
 }
 
 .input-wrapper {
@@ -55,14 +58,14 @@ h1 {
 
 .tools-section {
     margin-top: 20px;
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 10px;
+    margin-bottom: 20px;
 }
 
 .tool-btn {
-    flex-grow: 1;
-    padding: 12px 0;
+    padding: 12px 8px;
     border-radius: 8px;
     background-color: #555;
     color: white;
@@ -70,19 +73,32 @@ h1 {
     font-weight: bold;
     cursor: pointer;
     border: none;
-    transition: background-color 0.3s ease, transform 0.1s ease;
+    transition: all 0.3s ease;
+    font-size: 0.9em;
+    position: relative;
 }
 
 .tool-btn:hover {
-    background-color: #777;
+    background-color: #666;
+    transform: translateY(-1px);
 }
 
 .tool-btn.active {
     background-color: #007bff;
+    box-shadow: 0 0 10px rgba(0, 123, 255, 0.4);
 }
 
 .tool-btn.active:hover {
     background-color: #0056b3;
+}
+
+.clear-btn {
+    background-color: #dc3545 !important;
+    grid-column: 1 / -1;
+}
+
+.clear-btn:hover {
+    background-color: #c82333 !important;
 }
 
 /* Esconde o input de arquivo padrão */
@@ -96,32 +112,223 @@ input[type="file"] {
     width: 100%;
     padding: 12px 0;
     border-radius: 8px;
-    background-color: #007bff;
+    background-color: #28a745;
     color: white;
     text-align: center;
     font-weight: bold;
     cursor: pointer;
-    transition: background-color 0.3s ease, transform 0.1s ease;
+    transition: all 0.3s ease;
 }
 
 .custom-file-upload:hover {
-    background-color: #0056b3;
+    background-color: #218838;
+    transform: translateY(-1px);
 }
 
 .custom-file-upload:active {
     transform: scale(0.98);
 }
 
-#info-panel {
+/* Painel de instruções */
+.instructions-panel {
+    margin: 15px 0;
+    padding: 12px;
+    background-color: rgba(0, 123, 255, 0.1);
+    border-left: 3px solid #007bff;
+    border-radius: 6px;
+    display: none;
+}
+
+.instructions-panel:has(.instructions-text:not(:empty)) {
+    display: block;
+}
+
+.instructions-text {
+    font-size: 0.9em;
+    color: #e3f2fd;
+    line-height: 1.4;
+    margin: 0;
+}
+
+/* Painel de medições */
+.measurements-panel {
     margin-top: 20px;
     padding-top: 15px;
     border-top: 1px solid #555;
+    display: none;
 }
 
-.info-text {
-    font-size: 1.1em;
+.measurements-panel h3 {
+    margin: 0 0 15px 0;
+    font-size: 1.2em;
+    color: #ffffff;
+}
+
+.measurement-group {
+    margin-bottom: 15px;
+}
+
+.measurement-group h4 {
+    margin: 0 0 8px 0;
+    font-size: 1em;
+    color: #ccc;
+    font-weight: normal;
+}
+
+.measurement-list {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    padding: 8px;
+    min-height: 30px;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.measurement-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+
+.measurement-item:last-child {
+    margin-bottom: 0;
+}
+
+.measurement-item:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.measurement-value {
+    font-family: 'Courier New', monospace;
     font-weight: bold;
     color: #00d4ff;
+    font-size: 0.95em;
+}
+
+.delete-btn {
+    background: #dc3545;
+    border: none;
+    color: white;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+.delete-btn:hover {
+    background: #c82333;
+    transform: scale(1.1);
+}
+
+/* Notificações */
+.notification {
+    font-family: inherit;
+}
+
+/* Scrollbar personalizada para webkit */
+.measurements-panel::-webkit-scrollbar,
+.measurement-list::-webkit-scrollbar,
+#ui-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.measurements-panel::-webkit-scrollbar-track,
+.measurement-list::-webkit-scrollbar-track,
+#ui-container::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+.measurements-panel::-webkit-scrollbar-thumb,
+.measurement-list::-webkit-scrollbar-thumb,
+#ui-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+}
+
+.measurements-panel::-webkit-scrollbar-thumb:hover,
+.measurement-list::-webkit-scrollbar-thumb:hover,
+#ui-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+/* Estados vazios */
+.measurement-list:empty::before {
+    content: "Nenhuma medição realizada";
+    display: block;
     text-align: center;
-    margin: 5px 0;
+    color: #888;
+    font-style: italic;
+    font-size: 0.85em;
+    padding: 10px 0;
+}
+
+/* Responsividade para telas menores */
+@media (max-width: 768px) {
+    #ui-container {
+        width: calc(100vw - 40px);
+        max-width: 350px;
+    }
+    
+    .tools-section {
+        grid-template-columns: 1fr;
+    }
+    
+    .clear-btn {
+        grid-column: 1;
+    }
+}
+
+/* Animações suaves */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.measurement-item {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Estados de loading */
+.loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+    border: 2px solid #ffffff;
+    border-top: 2px solid transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
