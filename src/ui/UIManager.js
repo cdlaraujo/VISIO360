@@ -11,6 +11,7 @@ export class UIManager {
         this.fileInput = null;
         this.measureToolBtn = null;
         this.areaToolBtn = null;
+        this.surfaceAreaToolBtn = null;
         this.clearAllBtn = null;
         this.instructionsEl = null;
         this.measurementsPanel = null;
@@ -49,7 +50,10 @@ export class UIManager {
                     📏 Distância
                 </button>
                 <button id="area-tool-btn" class="tool-btn">
-                    📐 Área
+                    📐 Área Plana
+                </button>
+                <button id="surface-area-tool-btn" class="tool-btn">
+                    🗻 Área Real
                 </button>
                 <button id="clear-all-btn" class="tool-btn clear-btn">
                     🗑️ Limpar
@@ -67,8 +71,12 @@ export class UIManager {
                     <div id="distance-list" class="measurement-list"></div>
                 </div>
                 <div id="area-measurements" class="measurement-group">
-                    <h4>Áreas</h4>
+                    <h4>Áreas Planas</h4>
                     <div id="area-list" class="measurement-list"></div>
+                </div>
+                <div id="surface-area-measurements" class="measurement-group">
+                    <h4>Áreas Reais (Superfície 3D)</h4>
+                    <div id="surface-area-list" class="measurement-list"></div>
                 </div>
             </div>
 
@@ -81,6 +89,7 @@ export class UIManager {
         this.fileInput = document.getElementById('model-input');
         this.measureToolBtn = document.getElementById('measure-tool-btn');
         this.areaToolBtn = document.getElementById('area-tool-btn');
+        this.surfaceAreaToolBtn = document.getElementById('surface-area-tool-btn');
         this.clearAllBtn = document.getElementById('clear-all-btn');
         this.instructionsEl = document.getElementById('tool-instructions');
         this.measurementsPanel = document.getElementById('measurements-panel');
@@ -105,6 +114,12 @@ export class UIManager {
             });
         }
 
+        if (this.surfaceAreaToolBtn) {
+            this.surfaceAreaToolBtn.addEventListener('click', () => {
+                this.eventBus.emit('tool:activate', { tool: 'surfaceArea' });
+            });
+        }
+
         if (this.clearAllBtn) {
             this.clearAllBtn.addEventListener('click', () => {
                 this.eventBus.emit('measurement:clear:all');
@@ -117,6 +132,7 @@ export class UIManager {
         this.eventBus.on('ui:measurements:update', (payload) => this._updateMeasurementsDisplay(payload));
         this.eventBus.on('measurement:distance:completed', (payload) => this._onMeasurementCompleted('distance', payload.measurement));
         this.eventBus.on('measurement:area:completed', (payload) => this._onMeasurementCompleted('area', payload.measurement));
+        this.eventBus.on('measurement:surfaceArea:completed', (payload) => this._onMeasurementCompleted('surfaceArea', payload.measurement));
     }
 
     _handleFileSelect(event) {
@@ -135,7 +151,7 @@ export class UIManager {
 
     _updateToolButtons(activeTool) {
         // Remove classe 'active' de todos os botões
-        [this.measureToolBtn, this.areaToolBtn].forEach(btn => {
+        [this.measureToolBtn, this.areaToolBtn, this.surfaceAreaToolBtn].forEach(btn => {
             if (btn) btn.classList.remove('active');
         });
 
@@ -144,23 +160,30 @@ export class UIManager {
             this.measureToolBtn.classList.add('active');
         } else if (activeTool === 'area' && this.areaToolBtn) {
             this.areaToolBtn.classList.add('active');
+        } else if (activeTool === 'surfaceArea' && this.surfaceAreaToolBtn) {
+            this.surfaceAreaToolBtn.classList.add('active');
         }
     }
 
     _updateInstructions(text) {
         if (this.instructionsEl) {
             this.instructionsEl.textContent = text;
-            this.instructionsEl.style.display = text ? 'block' : 'none';
+            const panel = document.getElementById('instructions-panel');
+            if (panel) {
+                panel.style.display = text ? 'block' : 'none';
+            }
         }
     }
 
     _updateMeasurementsDisplay(stats) {
         this._updateDistancesList(stats.distances || []);
         this._updateAreasList(stats.areas || []);
+        this._updateSurfaceAreasList(stats.surfaceAreas || []);
         
         // Mostra/esconde o painel de medições baseado no conteúdo
         const hasResults = (stats.distances && stats.distances.length > 0) || 
-                          (stats.areas && stats.areas.length > 0);
+                          (stats.areas && stats.areas.length > 0) ||
+                          (stats.surfaceAreas && stats.surfaceAreas.length > 0);
         
         if (this.measurementsPanel) {
             this.measurementsPanel.style.display = hasResults ? 'block' : 'none';
@@ -217,10 +240,40 @@ export class UIManager {
         });
     }
 
+    _updateSurfaceAreasList(surfaceAreas) {
+        const listEl = document.getElementById('surface-area-list');
+        if (!listEl) return;
+
+        listEl.innerHTML = '';
+        
+        surfaceAreas.forEach((area, index) => {
+            const item = document.createElement('div');
+            item.className = 'measurement-item';
+            item.innerHTML = `
+                <span class="measurement-value">${area.value.toFixed(3)}m² (3D)</span>
+                <button class="delete-btn" data-id="${area.id}" data-type="surfaceArea">×</button>
+            `;
+            listEl.appendChild(item);
+        });
+
+        // Adiciona listeners para botões de delete
+        listEl.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = e.target.dataset.id;
+                this.eventBus.emit('measurement:delete', { id });
+            });
+        });
+    }
+
     _onMeasurementCompleted(type, measurement) {
-        const message = type === 'distance' 
-            ? `Distância medida: ${measurement.distance.toFixed(3)}m`
-            : `Área medida: ${measurement.area.toFixed(3)}m²`;
+        let message = '';
+        if (type === 'distance') {
+            message = `Distância medida: ${measurement.distance.toFixed(3)}m`;
+        } else if (type === 'area') {
+            message = `Área plana medida: ${measurement.area.toFixed(3)}m²`;
+        } else if (type === 'surfaceArea') {
+            message = `Área real de superfície: ${measurement.surfaceArea.toFixed(3)}m²`;
+        }
         
         this.logger.info(`UIManager: ${message}`);
         this._showNotification(message);
