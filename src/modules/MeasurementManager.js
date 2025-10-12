@@ -202,74 +202,209 @@ export class MeasurementManager {
         }
     }
 
+    /**
+     * FIXED: Calculates the real surface area of the model within a user-defined polygon.
+     * Now handles both indexed and non-indexed geometries, and accounts for model transformations.
+     */
     _calculateSurfaceArea(polygonPoints) {
+        // Validate model and geometry
         if (!this.activeModel || !this.activeModel.geometry) {
-            this.logger.warn("Modelo não ativo ou sem geometria para cálculo de área de superfície.");
+            this.logger.warn("MeasurementManager: Modelo não ativo ou sem geometria para cálculo de área de superfície.");
             return { surfaceArea: 0, highlightedGeometry: null };
         }
 
         const modelGeometry = this.activeModel.geometry;
         const positionAttribute = modelGeometry.attributes.position;
-        const indexAttribute = modelGeometry.index;
 
-        // Project polygon onto the XY plane for 2D point-in-polygon test
-        const polygon2D = polygonPoints.map(p => new THREE.Vector2(p.x, p.z));
+        // FIX #5: Validate position attribute exists
+        if (!positionAttribute) {
+            this.logger.error("MeasurementManager: Geometria não possui atributo de posição.");
+            return { surfaceArea: 0, highlightedGeometry: null };
+        }
+
+        // FIX #2: Get the actual plane of the polygon in world space
+        // Calculate polygon normal to determine projection plane
+        const polygonNormal = this._calculatePolygonNormal(polygonPoints);
+        
+        // FIX #2: Project polygon to best-fit 2D plane based on its orientation
+        const { polygon2D, projectionBasis } = this._projectPolygonTo2D(polygonPoints, polygonNormal);
 
         let totalArea = 0;
         const facesToHighlight = [];
 
-        const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3();
+        const vA = new THREE.Vector3();
+        const vB = new THREE.Vector3();
+        const vC = new THREE.Vector3();
 
-        for (let i = 0; i < indexAttribute.count; i += 3) {
-            const iA = indexAttribute.getX(i);
-            const iB = indexAttribute.getX(i + 1);
-            const iC = indexAttribute.getX(i + 2);
+        // FIX #1: Handle both indexed and non-indexed geometries
+        const indexAttribute = modelGeometry.index;
+        const isIndexed = indexAttribute !== null;
+        const faceCount = isIndexed 
+            ? indexAttribute.count / 3 
+            : positionAttribute.count / 3;
 
+        this.logger.info(`MeasurementManager: Processando ${faceCount} faces (${isIndexed ? 'indexed' : 'non-indexed'} geometry).`);
+
+        for (let faceIndex = 0; faceIndex < faceCount; faceIndex++) {
+            // FIX #1: Get vertex indices based on geometry type
+            let iA, iB, iC;
+            
+            if (isIndexed) {
+                iA = indexAttribute.getX(faceIndex * 3);
+                iB = indexAttribute.getX(faceIndex * 3 + 1);
+                iC = indexAttribute.getX(faceIndex * 3 + 2);
+            } else {
+                // Non-indexed: vertices are stored sequentially
+                iA = faceIndex * 3;
+                iB = faceIndex * 3 + 1;
+                iC = faceIndex * 3 + 2;
+            }
+
+            // Get vertices in local space
             vA.fromBufferAttribute(positionAttribute, iA);
             vB.fromBufferAttribute(positionAttribute, iB);
             vC.fromBufferAttribute(positionAttribute, iC);
 
-            // Transform vertices to world space
+            // FIX #2: Transform to world space (accounts for model rotation)
             this.activeModel.localToWorld(vA);
             this.activeModel.localToWorld(vB);
             this.activeModel.localToWorld(vC);
 
-            const triangleCenter = new THREE.Vector3().add(vA).add(vB).add(vC).divideScalar(3);
-            const center2D = new THREE.Vector2(triangleCenter.x, triangleCenter.z);
+            // Calculate triangle center in world space
+            const triangleCenter = new THREE.Vector3()
+                .add(vA).add(vB).add(vC)
+                .divideScalar(3);
 
+            // FIX #2 & #4: Project triangle center to the same 2D plane as polygon
+            const center2D = this._projectPointTo2D(triangleCenter, projectionBasis);
+
+            // FIX #4: Test if triangle center is inside polygon
             if (this._isPointInPolygon(center2D, polygon2D)) {
-                const area = THREE.Triangle.getArea(vA, vB, vC);
+                // Calculate actual 3D triangle area
+                const area = this._calculateTriangleArea(vA, vB, vC);
                 totalArea += area;
+                
+                // Store triangle for highlighting
                 facesToHighlight.push(new THREE.Triangle(vA.clone(), vB.clone(), vC.clone()));
             }
         }
 
-        // Create a new geometry for the highlighted faces
-        const geometries = facesToHighlight.map(tri => {
-            const geom = new THREE.BufferGeometry();
-            geom.setAttribute('position', new THREE.Float32BufferAttribute([
-                tri.a.x, tri.a.y, tri.a.z,
-                tri.b.x, tri.b.y, tri.b.z,
-                tri.c.x, tri.c.y, tri.c.z
-            ], 3));
-            return geom;
-        });
+        this.logger.info(`MeasurementManager: Área de superfície calculada: ${totalArea.toFixed(4)}m² (${facesToHighlight.length} faces).`);
 
-        const highlightedGeometry = geometries.length > 0 ? BufferGeometryUtils.mergeGeometries(geometries) : null;
+        // Create merged geometry for highlighted faces
+        let highlightedGeometry = null;
+        if (facesToHighlight.length > 0) {
+            const geometries = facesToHighlight.map(tri => {
+                const geom = new THREE.BufferGeometry();
+                geom.setAttribute('position', new THREE.Float32BufferAttribute([
+                    tri.a.x, tri.a.y, tri.a.z,
+                    tri.b.x, tri.b.y, tri.b.z,
+                    tri.c.x, tri.c.y, tri.c.z
+                ], 3));
+                geom.computeVertexNormals();
+                return geom;
+            });
+
+            try {
+                highlightedGeometry = BufferGeometryUtils.mergeGeometries(geometries);
+            } catch (error) {
+                this.logger.error("MeasurementManager: Erro ao mesclar geometrias destacadas.", error);
+                highlightedGeometry = geometries[0]; // Fallback to first geometry
+            }
+        }
 
         return { surfaceArea: totalArea, highlightedGeometry };
     }
 
+    /**
+     * ADDED: Calculate the normal vector of a polygon using Newell's method
+     * This is robust for non-planar polygons
+     */
+    _calculatePolygonNormal(points) {
+        const normal = new THREE.Vector3(0, 0, 0);
+        const n = points.length;
+
+        for (let i = 0; i < n; i++) {
+            const current = points[i];
+            const next = points[(i + 1) % n];
+
+            normal.x += (current.y - next.y) * (current.z + next.z);
+            normal.y += (current.z - next.z) * (current.x + next.x);
+            normal.z += (current.x - next.x) * (current.y + next.y);
+        }
+
+        normal.normalize();
+        return normal;
+    }
+
+    /**
+     * ADDED: Project polygon to 2D plane using optimal basis vectors
+     * Returns both 2D polygon and the projection basis for consistent transformations
+     */
+    _projectPolygonTo2D(points, normal) {
+        // Create orthonormal basis for the polygon plane
+        // U and V are in-plane vectors, normal is perpendicular
+        const up = Math.abs(normal.y) < 0.999 
+            ? new THREE.Vector3(0, 1, 0) 
+            : new THREE.Vector3(1, 0, 0);
+        
+        const uAxis = new THREE.Vector3().crossVectors(up, normal).normalize();
+        const vAxis = new THREE.Vector3().crossVectors(normal, uAxis).normalize();
+
+        const projectionBasis = {
+            origin: points[0].clone(),
+            uAxis,
+            vAxis
+        };
+
+        // Project all polygon points to 2D using this basis
+        const polygon2D = points.map(p => this._projectPointTo2D(p, projectionBasis));
+
+        return { polygon2D, projectionBasis };
+    }
+
+    /**
+     * ADDED: Project a 3D point to 2D using the given projection basis
+     */
+    _projectPointTo2D(point, basis) {
+        const relativePoint = point.clone().sub(basis.origin);
+        return new THREE.Vector2(
+            relativePoint.dot(basis.uAxis),
+            relativePoint.dot(basis.vAxis)
+        );
+    }
+
+    /**
+     * FIXED: More robust point-in-polygon test with edge case handling
+     */
     _isPointInPolygon(point, polygon) {
         let inside = false;
-        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-            const xi = polygon[i].x, yi = polygon[i].y;
-            const xj = polygon[j].x, yj = polygon[j].y;
+        const n = polygon.length;
+
+        for (let i = 0, j = n - 1; i < n; j = i++) {
+            const xi = polygon[i].x;
+            const yi = polygon[i].y;
+            const xj = polygon[j].x;
+            const yj = polygon[j].y;
+
+            // Ray casting algorithm with epsilon for numerical stability
             const intersect = ((yi > point.y) !== (yj > point.y))
-                && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+                && (point.x < (xj - xi) * (point.y - yi) / (yj - yi + 1e-10) + xi);
+            
             if (intersect) inside = !inside;
         }
+
         return inside;
+    }
+
+    /**
+     * ADDED: Calculate area of a 3D triangle using cross product
+     */
+    _calculateTriangleArea(vA, vB, vC) {
+        const edge1 = new THREE.Vector3().subVectors(vB, vA);
+        const edge2 = new THREE.Vector3().subVectors(vC, vA);
+        const cross = new THREE.Vector3().crossVectors(edge1, edge2);
+        return cross.length() / 2;
     }
 
     _addPointVisual(point, materialType, measurement) {
@@ -305,15 +440,15 @@ export class MeasurementManager {
 
         let text, color;
         if (measurement.type === 'area') {
-            text = `${measurement.area.toFixed(2)}m² (Plana)`;
+            text = `${measurement.area.toFixed(2)}m²`;
             color = '#00ff00';
         } else {
-            text = `${measurement.surfaceArea.toFixed(2)}m² (Real)`;
+            text = `${measurement.surfaceArea.toFixed(2)}m²`;
             color = '#00aaff';
         }
 
         const label = this._createTextSprite(text, color);
-        label.position.copy(center).y += 0.2; // Elevate label
+        label.position.copy(center).y += 0.2;
         this.measurementGroup.add(label);
         measurement.visuals.labels.push(label);
     }
@@ -356,7 +491,11 @@ export class MeasurementManager {
         if (points.length < 3) return 0;
         let area = 0;
         const n = points.length;
-        const normal = new THREE.Vector3().crossVectors(new THREE.Vector3().subVectors(points[1], points[0]), new THREE.Vector3().subVectors(points[2], points[0])).normalize();
+        const normal = new THREE.Vector3().crossVectors(
+            new THREE.Vector3().subVectors(points[1], points[0]), 
+            new THREE.Vector3().subVectors(points[2], points[0])
+        ).normalize();
+        
         for (let i = 0; i < n; i++) {
             const j = (i + 1) % n;
             area += normal.dot(new THREE.Vector3().crossVectors(points[i], points[j]));
