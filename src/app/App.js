@@ -17,15 +17,15 @@ import { CollaborationManager } from '../modules/CollaborationManager.js';
 export class App {
     constructor(container) {
         if (!container) {
-            throw new Error('Container element required');
+            throw new Error('Container element is required for the application.');
         }
         this.container = container;
-        
+
         // Core systems
         this.logger = new Logger('INFO');
         this.eventBus = new EventBus(this.logger);
 
-        // Modules
+        // Application Modules
         this.sceneManager = new SceneManager(this.logger, this.eventBus);
         this.renderer = null;
         this.modelLoader = new ModelLoader(this.logger, this.eventBus);
@@ -33,25 +33,25 @@ export class App {
         this.toolController = new ToolController(this.logger, this.eventBus);
         this.interactionController = null;
         this.measurementManager = null;
-        this.collaborationManager = null;  // NEW!
+        this.collaborationManager = null; // Added for collaboration
     }
 
     async start() {
-        this.logger.info('App: Starting application with collaboration...');
-        
+        this.logger.info('App: Starting collaborative 3D viewer...');
+
         try {
-            // 1. Initialize scene
+            // 1. Initialize SceneManager and get the scene
             const { scene } = this.sceneManager.initialize();
 
-            // 2. Initialize renderer
+            // 2. Initialize Renderer
             this.renderer = new Renderer(this.container, scene, this.logger, this.eventBus);
             const rendererComponents = this.renderer.initialize();
-            
-            // 3. Initialize other modules
+
+            // 3. Initialize core modules
             this.modelLoader.initialize();
             this.uiManager.initialize();
 
-            // 4. Initialize interaction controller
+            // 4. Initialize InteractionController
             this.interactionController = new InteractionController(
                 rendererComponents.camera,
                 rendererComponents.domElement,
@@ -59,116 +59,111 @@ export class App {
                 this.eventBus
             );
 
-            // 5. Initialize measurement system
+            // 5. Initialize MeasurementManager
             this.measurementManager = new MeasurementManager(
                 scene,
                 this.logger,
                 this.eventBus
             );
 
-            // 6. Initialize collaboration system (NEW!)
+            // 6. Initialize CollaborationManager
             this.collaborationManager = new CollaborationManager(
                 scene,
                 this.logger,
                 this.eventBus,
                 {
-                    usePeerJSCloud: true,
-                    autoJoinRoom: true
+                    usePeerJSCloud: true, // Use the free, public PeerJS server
+                    autoJoinRoom: true    // Automatically join a room if the URL has a room code
                 }
             );
 
-            // 7. Setup integrations
+            // 7. Configure integrations between modules
             this._setupCrossModuleIntegration();
-            
-            // 8. Start animation loop
+
+            // 8. Start the animation loop
             this._animate();
 
-            this.logger.info('App: Application started successfully');
-            
+            this.logger.info('App: Application started successfully.');
+
         } catch (error) {
-            this.logger.error('App: Initialization error', error);
+            this.logger.error('App: A critical error occurred during initialization.', error);
+            // Re-throw the error to be caught by the global handler in index.html
             throw error;
         }
     }
 
+    /**
+     * Sets up event listeners to enable communication between different modules.
+     * @private
+     */
     _setupCrossModuleIntegration() {
-        // Measurement to collaboration sync
+        // When a model is loaded from a URL, share it with peers
+        this.eventBus.on('model:loaded', (payload) => {
+            // Check if the model has a URL attached to its data
+            if (payload.model.userData.url) {
+                if (this.collaborationManager && this.collaborationManager.isConnected()) {
+                    const modelUrl = payload.model.userData.url;
+                    this.collaborationManager.currentModelURL = modelUrl;
+                    // Broadcast the model URL to all connected peers
+                    this.collaborationManager._broadcast({
+                        type: 'set-model',
+                        url: modelUrl,
+                        fileName: modelUrl.split('/').pop()
+                    });
+                }
+            }
+        });
+
+        // When a local measurement is completed, share it with peers
         this.eventBus.on('measurement:distance:completed', (payload) => {
             if (this.collaborationManager && this.collaborationManager.isConnected()) {
-                const midPoint = payload.measurement.points[0].clone()
-                    .add(payload.measurement.points[1]).multiplyScalar(0.5);
-
+                // Send measurement data, not the full Three.js objects
                 this.collaborationManager.createAnnotation({
                     type: 'measurement',
-                    subtype: 'distance',
                     distance: payload.measurement.distance,
-                    points: payload.measurement.points.map(p => ({ x: p.x, y: p.y, z: p.z })),
-                    position: { x: midPoint.x, y: midPoint.y, z: midPoint.z }
+                    points: payload.measurement.points.map(p => ({ x: p.x, y: p.y, z: p.z }))
                 });
             }
         });
 
-        this.eventBus.on('measurement:area:completed', (payload) => {
-            if (this.collaborationManager && this.collaborationManager.isConnected()) {
-                const center = new THREE.Vector3();
-                payload.measurement.points.forEach(p => center.add(p));
-                center.divideScalar(payload.measurement.points.length);
+        // Add more measurement sync handlers here...
 
-                this.collaborationManager.createAnnotation({
-                    type: 'area',
-                    area: payload.measurement.area,
-                    points: payload.measurement.points.map(p => ({ x: p.x, y: p.y, z: p.z })),
-                    position: { x: center.x, y: center.y, z: center.z }
-                });
-            }
-        });
+        // Listener for general resource cleanup
+        this.eventBus.on('app:cleanup', () => this._cleanup());
 
-        this.eventBus.on('measurement:surfaceArea:completed', (payload) => {
-            if (this.collaborationManager && this.collaborationManager.isConnected()) {
-                const center = new THREE.Vector3();
-                payload.measurement.points.forEach(p => center.add(p));
-                center.divideScalar(payload.measurement.points.length);
-
-                this.collaborationManager.createAnnotation({
-                    type: 'surfaceArea',
-                    surfaceArea: payload.measurement.surfaceArea,
-                    points: payload.measurement.points.map(p => ({ x: p.x, y: p.y, z: p.z })),
-                    position: { x: center.x, y: center.y, z: center.z }
-                });
-            }
-        });
-
-        // Cleanup handler
-        this.eventBus.on('app:cleanup', () => {
-            this._cleanup();
-        });
-
-        this.logger.info('App: Cross-module integration configured');
+        this.logger.info('App: Cross-module integrations have been configured.');
     }
 
+    /**
+     * The main animation loop, called every frame.
+     * @private
+     */
     _animate() {
-        try {
-            requestAnimationFrame(this._animate.bind(this));
-            this.eventBus.emit('app:update');
-        } catch (error) {
-            this.logger.error('App: Animation loop error', error);
-        }
+        requestAnimationFrame(this._animate.bind(this));
+        // Emit a general update event that other modules can listen to
+        this.eventBus.emit('app:update');
     }
 
+    /**
+     * Cleans up resources when the application is closed or reset.
+     * @private
+     */
     _cleanup() {
-        this.logger.info('App: Cleaning up resources...');
-        
+        this.logger.info('App: Cleaning up application resources...');
         if (this.measurementManager) {
             this.measurementManager.clearAllMeasurements();
         }
-
         if (this.collaborationManager) {
             this.collaborationManager.disconnect();
         }
-
-        this.logger.info('App: Cleanup complete');
+        // Add more cleanup logic for other modules if needed
+        this.logger.info('App: Cleanup complete.');
     }
 
+    /**
+     * Public API to get references to the main modules (useful for debugging).
+     * @returns {object} An object containing references to the application's modules.
+     */
     getModules() {
         return {
             logger: this.logger,
@@ -180,7 +175,7 @@ export class App {
             toolController: this.toolController,
             interactionController: this.interactionController,
             measurementManager: this.measurementManager,
-            collaborationManager: this.collaborationManager  // NEW!
+            collaborationManager: this.collaborationManager
         };
     }
 }

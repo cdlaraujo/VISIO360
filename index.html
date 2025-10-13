@@ -3,350 +3,103 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualizador 3D com Colaboração</title>
+    <title>Visualizador 3D Colaborativo</title>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.151.3/build/three.module.js",
+            "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.151.3/examples/jsm/"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        /* All your CSS stays the same - keeping it short here */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            color: #f0f0f0;
-            background-color: #1a1a1a;
-            overflow: hidden;
-        }
-        #app {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 1;
-        }
-        #ui-container {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            z-index: 10;
-            background-color: rgba(40, 40, 40, 0.95);
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(10px);
-            width: 340px;
-            max-height: calc(100vh - 40px);
-            overflow-y: auto;
-        }
-        h1 {
-            margin-top: 0;
-            font-size: 1.5em;
-            color: #ffffff;
-            border-bottom: 1px solid #555;
-            padding-bottom: 10px;
-            margin-bottom: 15px;
-        }
-        .section { margin-bottom: 20px; }
-        .section-title {
-            font-size: 0.85em;
-            color: #aaa;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .hint {
-            font-size: 0.8em;
-            color: #aaa;
-            margin-top: 8px;
-            line-height: 1.4;
-        }
-        .input-field {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 10px;
-            border: 1px solid #555;
-            border-radius: 6px;
-            background: rgba(0, 0, 0, 0.3);
-            color: white;
-            font-size: 0.95em;
-        }
-        .input-field:focus {
-            outline: none;
-            border-color: #007bff;
-        }
-        .btn {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin-bottom: 10px;
-            font-size: 0.95em;
-        }
-        .btn:hover { transform: translateY(-1px); }
-        .btn-primary { background: #007bff; color: white; }
-        .btn-primary:hover { background: #0056b3; }
-        .btn-secondary { background: #555; color: white; }
-        .btn-secondary:hover { background: #666; }
-        .btn-success { background: #28a745; color: white; }
-        .btn-success:hover { background: #218838; }
-        .btn.active {
-            background: #007bff;
-            box-shadow: 0 0 15px rgba(0, 123, 255, 0.5);
-        }
-        .btn-danger { background: #dc3545; color: white; }
-        .btn-danger:hover { background: #c82333; }
-        .btn-copy {
-            width: 100%;
-            padding: 8px;
-            background: #17a2b8;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.9em;
-            margin-top: 8px;
-        }
-        .btn-copy:hover { background: #138496; }
+        /* General Styles */
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #f0f0f0; background-color: #1a1a1a; overflow: hidden; }
+        #app { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+        #ui-container { position: fixed; top: 20px; left: 20px; z-index: 10; background-color: rgba(40, 40, 40, 0.95); padding: 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5); backdrop-filter: blur(10px); width: 340px; max-height: calc(100vh - 40px); overflow-y: auto; }
+        h1 { margin-top: 0; font-size: 1.5em; color: #ffffff; border-bottom: 1px solid #555; padding-bottom: 10px; margin-bottom: 15px; }
+        .section { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #444; }
+        .section-title { font-size: 1.1em; color: #00d4ff; margin-bottom: 15px; font-weight: bold; }
+        .hint { font-size: 0.8em; color: #aaa; margin: 10px 0; text-align: left; line-height: 1.4; }
+        .btn { padding: 10px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; transition: all 0.3s ease; font-size: 0.95em; width: 100%; margin-top: 5px; }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-primary:hover { background-color: #0056b3; }
+        .btn-secondary { background-color: #6c757d; color: white; }
+        .btn-secondary:hover { background-color: #5a6268; }
+        .btn-success { background-color: #28a745; color: white; }
+        .btn-success:hover { background-color: #218838; }
+        .input-field { width: calc(100% - 22px); padding: 10px; margin-bottom: 10px; border: 1px solid #555; border-radius: 6px; background: rgba(0, 0, 0, 0.3); color: white; font-size: 0.95em; }
         input[type="file"] { display: none; }
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 6px;
-            margin-bottom: 15px;
-        }
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #666;
-        }
-        .status-dot.connected {
-            background: #4CAF50;
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
+        .custom-file-upload { display: block; width: 100%; padding: 12px 0; border-radius: 8px; background-color: #555; color: white; text-align: center; font-weight: bold; cursor: pointer; transition: all 0.3s ease; }
+        .custom-file-upload:hover { background-color: #666; }
+
+        /* Collaboration UI */
+        #room-connect-panel, #join-room-input { display: grid; gap: 10px; }
+        .status-indicator { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 6px; }
+        .status-dot { width: 12px; height: 12px; border-radius: 50%; background: #ff4444; }
+        .status-dot.connected { background: #4CAF50; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
         .room-code-display { margin: 15px 0; }
-        .room-code {
-            background: rgba(0, 0, 0, 0.5);
-            padding: 12px;
-            border-radius: 6px;
-            font-family: monospace;
-            font-size: 1.1em;
-            text-align: center;
-            margin: 8px 0;
-            letter-spacing: 2px;
-            word-break: break-all;
-        }
-        .peers-list {
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid #555;
-        }
-        .peers-list label {
-            display: block;
-            margin-bottom: 10px;
-            font-size: 0.9em;
-        }
-        #peers-container {
-            max-height: 150px;
-            overflow-y: auto;
-        }
-        .peer-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 6px;
-            margin-bottom: 6px;
-        }
-        .peer-color-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            flex-shrink: 0;
-        }
-        .tools-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-        .measurements-panel {
-            margin-top: 20px;
-            padding-top: 15px;
-            border-top: 1px solid #555;
-        }
-        .measurement-group { margin-bottom: 15px; }
-        .measurement-group h4 {
-            margin: 0 0 8px 0;
-            font-size: 0.9em;
-            color: #ccc;
-            font-weight: normal;
-        }
-        .measurement-list {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 6px;
-            padding: 8px;
-            min-height: 40px;
-            max-height: 120px;
-            overflow-y: auto;
-        }
-        .measurement-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 6px 8px;
-            margin-bottom: 4px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 4px;
-        }
-        .measurement-value {
-            font-family: monospace;
-            color: #00d4ff;
-            font-weight: bold;
-            font-size: 0.95em;
-        }
-        .delete-btn {
-            background: #dc3545;
-            border: none;
-            color: white;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
-        }
-        .delete-btn:hover { background: #c82333; }
-        .loading {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 1000;
-            background: rgba(0, 0, 0, 0.9);
-            padding: 30px;
-            border-radius: 12px;
-            text-align: center;
-        }
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-top: 3px solid #007bff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 15px;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #4CAF50;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            z-index: 1000;
-            animation: slideIn 0.3s ease;
-        }
-        @keyframes slideIn {
-            from { transform: translateX(400px); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        .instructions-panel {
-            margin: 15px 0;
-            padding: 12px;
-            background: rgba(0, 123, 255, 0.1);
-            border-left: 3px solid #007bff;
-            border-radius: 6px;
-            display: none;
-        }
+        .room-code { background: rgba(0, 0, 0, 0.5); padding: 12px; border-radius: 6px; font-family: monospace; font-size: 1.2em; text-align: center; margin: 8px 0; letter-spacing: 2px; user-select: all; }
+        .peers-list { margin-top: 15px; padding-top: 15px; border-top: 1px solid #555; }
+        #peers-container { margin-top: 10px; max-height: 100px; overflow-y: auto; }
+        .peer-item { display: flex; align-items: center; gap: 8px; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 6px; margin-bottom: 6px; }
+        .peer-color-dot { width: 12px; height: 12px; border-radius: 50%; }
+
+        /* Tools & Measurements */
+        .tools-section { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .tool-btn { padding: 12px 8px; border-radius: 8px; background-color: #555; color: white; text-align: center; font-weight: bold; cursor: pointer; border: none; transition: all 0.3s ease; font-size: 0.9em; }
+        .tool-btn:hover { background-color: #666; transform: translateY(-1px); }
+        .tool-btn.active { background-color: #007bff; box-shadow: 0 0 10px rgba(0, 123, 255, 0.4); }
+        .clear-btn { background-color: #dc3545 !important; grid-column: 1 / -1; }
+        .clear-btn:hover { background-color: #c82333 !important; }
+        .instructions-panel { margin: 15px 0; padding: 12px; background-color: rgba(0, 123, 255, 0.1); border-left: 3px solid #007bff; border-radius: 6px; display: none; }
         .instructions-panel.show { display: block; }
-        .instructions-text {
-            font-size: 0.85em;
-            color: #e3f2fd;
-            line-height: 1.4;
-            margin: 0;
-        }
-        @media (max-width: 768px) {
-            #ui-container {
-                width: calc(100vw - 40px);
-                max-width: 350px;
-            }
-            .tools-grid { grid-template-columns: 1fr; }
-        }
+        .measurements-panel { margin-top: 20px; padding-top: 15px; border-top: 1px solid #555; display: none; }
+        .measurement-group h4 { margin: 0 0 8px 0; font-size: 1em; color: #ccc; font-weight: normal; }
+        .measurement-list { background-color: rgba(255, 255, 255, 0.05); border-radius: 6px; padding: 8px; min-height: 30px; max-height: 120px; overflow-y: auto; }
+        .measurement-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; margin-bottom: 4px; background-color: rgba(255, 255, 255, 0.1); border-radius: 4px; }
+        .measurement-value { font-family: 'Courier New', monospace; font-weight: bold; color: #00d4ff; font-size: 0.95em; }
+        .delete-btn { background: #dc3545; border: none; color: white; width: 20px; height: 20px; border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; padding: 0; }
+        .delete-btn:hover { background: #c82333; transform: scale(1.1); }
+
+        /* Loading & Notifications */
+        .loading-spinner { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50px; height: 50px; border: 4px solid rgba(255, 255, 255, 0.3); border-top: 4px solid #007bff; border-radius: 50%; animation: spin 1s linear infinite; z-index: 1001; }
+        @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+        .notification { position: fixed; top: 20px; right: 20px; background: #4CAF50; color: white; padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; font-size: 14px; animation: slideIn 0.3s ease forwards; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
     </style>
 </head>
 <body>
     <div id="app"></div>
-    
-    <div id="loading" class="loading" style="display: none;">
-        <div class="spinner"></div>
-        <p>Carregando...</p>
-    </div>
+
+    <div id="loading" class="loading-spinner"></div>
 
     <div id="ui-container">
-        <h1>🎨 Visualizador 3D</h1>
+        <h1>Visio360 Colaborativo</h1>
 
-        <div class="section">
-            <div class="section-title">Colaboração</div>
-            
+        <div id="room-section" class="section">
+            <div class="section-title">Sala de Colaboração</div>
             <div id="room-connect-panel">
-                <input type="text" 
-                       id="user-name-input" 
-                       class="input-field"
-                       placeholder="Seu nome"
-                       value="Usuário">
-                
-                <button id="create-room-btn" class="btn btn-primary">
-                    🚀 Criar Sala
-                </button>
-                
-                <button id="join-room-btn" class="btn btn-secondary">
-                    🔗 Entrar em Sala
-                </button>
-                
+                <input type="text" id="user-name-input" class="input-field" placeholder="Seu nome" value="Usuário">
+                <button id="create-room-btn" class="btn btn-success">🚀 Criar Nova Sala</button>
+                <button id="join-room-btn" class="btn btn-secondary">🔗 Entrar em Sala Existente</button>
                 <div id="join-room-input" style="display: none; margin-top: 10px;">
-                    <input type="text" 
-                           id="room-id-input" 
-                           class="input-field"
-                           placeholder="Código da sala">
-                    <button id="join-room-confirm-btn" class="btn btn-success">
-                        Entrar Agora
-                    </button>
+                    <input type="text" id="room-id-input" class="input-field" placeholder="Código da sala (e.g. ABC123)">
+                    <button id="join-room-confirm-btn" class="btn btn-primary">Entrar Agora</button>
                 </div>
-                
-                <p class="hint">Crie uma sala para começar</p>
             </div>
-            
             <div id="room-info-panel" style="display: none;">
                 <div class="status-indicator">
-                    <div class="status-dot connected"></div>
-                    <span id="connection-status">Conectado</span>
+                    <span id="status-dot" class="status-dot"></span>
+                    <span id="connection-status">Desconectado</span>
                 </div>
-                
                 <div class="room-code-display">
-                    <label style="font-size: 0.85em; color: #aaa;">Código da Sala:</label>
+                    <label>Código da Sala:</label>
                     <div class="room-code" id="room-code-display"></div>
-                    <button class="btn-copy" id="copy-room-btn">
-                        📋 Copiar Link
-                    </button>
+                    <button id="copy-room-btn" class="btn btn-primary">📋 Copiar Link de Convite</button>
                 </div>
-                
                 <div class="peers-list">
                     <label>👥 Usuários Online: <span id="peer-count">1</span></label>
                     <div id="peers-container"></div>
@@ -354,142 +107,103 @@
             </div>
         </div>
 
-        <div class="section">
+        <div id="model-loading-section" class="section">
             <div class="section-title">Modelo 3D</div>
-            <label for="model-input" class="btn btn-success">
-                📁 Carregar Modelo
-            </label>
-            <input type="file" 
-                   id="model-input" 
-                   accept=".ply,.gltf,.glb,.obj,.stl">
-            <p class="hint">Suporta: PLY, GLTF, GLB, OBJ, STL</p>
+            <div id="model-input-area">
+                <p class="hint">Para colaborar, o modelo 3D precisa estar em um link público (URL).</p>
+                <input type="text" id="model-url-input" class="input-field" placeholder="Cole a URL do modelo (.glb, .gltf, .ply)">
+                <button id="load-model-url-btn" class="btn btn-primary">Carregar Modelo via URL</button>
+                <div style="text-align:center; margin:10px 0; color: #888;">OU</div>
+                <label for="model-input" class="custom-file-upload">
+                    📁 Carregar do Computador (Apenas Visualização Local)
+                </label>
+                <input type="file" id="model-input" accept=".ply,.gltf,.glb" />
+            </div>
+            <div id="model-info-area" style="display:none;">
+                <p style="margin: 0;">Modelo Carregado: <b id="model-name-display"></b></p>
+                <button id="change-model-btn" class="btn btn-secondary">Trocar Modelo</button>
+            </div>
+        </div>
+
+        <div class="tools-section">
+            <button id="measure-tool-btn" class="tool-btn">📏 Distância</button>
+            <button id="area-tool-btn" class="tool-btn">📐 Área Plana</button>
+            <button id="surface-area-tool-btn" class="tool-btn">🗻 Área Real</button>
+            <button id="clear-all-btn" class="tool-btn clear-btn">🗑️ Limpar Medições</button>
         </div>
 
         <div id="instructions-panel" class="instructions-panel">
-            <p class="instructions-text" id="tool-instructions"></p>
+            <p id="tool-instructions" style="margin:0;"></p>
         </div>
 
-        <div class="section">
-            <div class="section-title">Ferramentas de Medição</div>
-            <div class="tools-grid">
-                <button class="btn btn-secondary" id="measure-tool-btn">
-                    📏 Distância
-                </button>
-                <button class="btn btn-secondary" id="area-tool-btn">
-                    📐 Área Plana
-                </button>
-                <button class="btn btn-secondary" id="surface-area-tool-btn">
-                    🗻 Área Real
-                </button>
-                <button class="btn btn-danger" id="clear-all-btn">
-                    🗑️ Limpar
-                </button>
-            </div>
-        </div>
-
-        <div id="measurements-panel" class="measurements-panel" style="display: none;">
-            <div class="section-title">Medições</div>
-            
-            <div class="measurement-group">
+        <div id="measurements-panel" class="measurements-panel">
+            <h3>Minhas Medições</h3>
+            <div id="distance-measurements" class="measurement-group">
                 <h4>Distâncias</h4>
                 <div id="distance-list" class="measurement-list"></div>
             </div>
-            
-            <div class="measurement-group">
+            <div id="area-measurements" class="measurement-group">
                 <h4>Áreas Planas</h4>
                 <div id="area-list" class="measurement-list"></div>
             </div>
-            
-            <div class="measurement-group">
-                <h4>Áreas de Superfície</h4>
+            <div id="surface-area-measurements" class="measurement-group">
+                <h4>Áreas Reais (Superfície)</h4>
                 <div id="surface-area-list" class="measurement-list"></div>
             </div>
         </div>
-
-        <p class="hint" style="text-align: center; margin-top: 20px;">
-            v1.0.0
-        </p>
     </div>
 
-    <!-- Import map for Three.js -->
-    <script type="importmap">
-    {
-      "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js",
-        "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/"
-      }
-    }
-    </script>
-
-    <!-- PeerJS for WebRTC -->
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-
-    <!-- Main Application -->
     <script type="module">
         import { App } from './src/app/App.js';
 
-        window.addEventListener('error', (event) => {
-            console.error('Global error:', event.error);
-        });
+        // Graceful error handling
+        function handleGlobalError(error) {
+            console.error('❌ Erro fatal na aplicação:', error);
+            const spinner = document.getElementById('loading');
+            if (spinner) spinner.style.display = 'none';
 
-        window.addEventListener('unhandledrejection', (event) => {
-            console.error('Unhandled rejection:', event.reason);
-        });
-
-        document.addEventListener('DOMContentLoaded', async () => {
-            try {
-                const appContainer = document.getElementById('app');
-                
-                if (!appContainer) {
-                    throw new Error('Container #app not found');
-                }
-
-                if (!window.WebGLRenderingContext) {
-                    throw new Error('WebGL not supported');
-                }
-
-                console.log('🚀 Starting application...');
-                
-                const app = new App(appContainer);
-                await app.start();
-                
-                window.app = app;
-                
-                console.log('✅ Application started successfully!');
-                
-            } catch (error) {
-                console.error('❌ Initialization error:', error);
-                document.getElementById('app').innerHTML = `
-                    <div style="
-                        position: fixed;
-                        top: 50%;
-                        left: 50%;
-                        transform: translate(-50%, -50%);
-                        text-align: center;
-                        color: #ff4444;
-                        background: rgba(0, 0, 0, 0.9);
-                        padding: 30px;
-                        border-radius: 12px;
-                        border: 1px solid #ff4444;
-                    ">
-                        <h2>🚨 Error</h2>
-                        <p>${error.message}</p>
-                        <pre style="font-size: 0.8em; text-align: left; margin-top: 15px;">${error.stack || ''}</pre>
-                        <button onclick="location.reload()" style="
-                            background: #007bff;
-                            color: white;
-                            border: none;
-                            padding: 12px 24px;
-                            border-radius: 6px;
-                            cursor: pointer;
-                            margin-top: 20px;
-                        ">
-                            🔄 Reload
-                        </button>
+            const appContainer = document.getElementById('app');
+            if (appContainer) {
+                appContainer.innerHTML = `
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #ff4444; background: rgba(0, 0, 0, 0.9); padding: 30px; border-radius: 12px; border: 1px solid #ff4444;">
+                        <h2>🚨 Erro na Aplicação</h2>
+                        <p>Não foi possível carregar o visualizador 3D.</p>
+                        <p><strong>Motivo:</strong> ${error.message || 'Erro desconhecido'}</p>
+                        <p style="font-size: 0.9em; color: #aaa; margin-top: 15px;">Verifique o console do navegador (F12) para mais detalhes.</p>
+                        <button onclick="location.reload()" style="background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; margin-top: 20px; font-size: 1em;">🔄 Tentar Novamente</button>
                     </div>
                 `;
             }
+        }
+
+        // Initialize on DOM load
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const appContainer = document.getElementById('app');
+                if (!appContainer) throw new Error('Container #app não encontrado no DOM');
+
+                // Check WebGL support
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                if (!gl) throw new Error('Seu navegador não suporta WebGL, que é necessário para rodar esta aplicação.');
+
+                console.log('🚀 Inicializando Visualizador 3D Colaborativo...');
+                const app = new App(appContainer);
+                await app.start();
+
+                // Expose app for debugging and UI interaction
+                window.app = app;
+                console.log('✅ Aplicação inicializada com sucesso!');
+                console.log('💡 Dica: Use window.app.getModules() no console para inspecionar os módulos internos.');
+
+            } catch (error) {
+                handleGlobalError(error);
+            }
         });
+
+        // Global error listeners
+        window.addEventListener('error', (event) => handleGlobalError(event.error));
+        window.addEventListener('unhandledrejection', (event) => handleGlobalError(new Error(event.reason || 'Promise Rejection')));
     </script>
 </body>
 </html>

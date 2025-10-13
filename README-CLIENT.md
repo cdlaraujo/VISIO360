@@ -1,128 +1,70 @@
-╔════════════════════════════════════════════════════════════╗
-║    VISUALIZADOR 3D COLABORATIVO - GUIA DE INSTALAÇÃO      ║
-╚════════════════════════════════════════════════════════════╝
+============================================================
+  VISIO360 - GUIA DE INSTALAÇÃO E USO PARA O CLIENTE
+============================================================
 
 Obrigado por adquirir o Visualizador 3D Colaborativo!
+Este guia irá ajudá-lo a colocar a aplicação no ar em minutos.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🚀 INÍCIO RÁPIDO (3 OPÇÕES):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+------------------------------------------------------------
+🚀 OPÇÃO 1: INSTALAÇÃO RÁPIDA (RECOMENDADO - 2 MINUTOS)
+------------------------------------------------------------
+A forma mais fácil de hospedar a aplicação é usando um serviço gratuito como o Netlify.
 
-OPÇÃO 1: Netlify (MAIS FÁCIL - 2 minutos)
-------------------------------------------
-1. Vá para: https://app.netlify.com/drop
-2. Arraste esta pasta para a página
-3. Aguarde 30 segundos
-4. Pronto! Você receberá um link como: https://seu-site.netlify.app
+1.  Vá para: https://app.netlify.com/drop
+2.  Arraste a pasta inteira deste projeto (a que contém o arquivo `index.html`) para a janela do seu navegador.
+3.  Aguarde 30 segundos enquanto o Netlify faz o upload e publica seu site.
+4.  Pronto! Você receberá um link público (ex: `https://meu-projeto-123.netlify.app`). Guarde este link.
 
-OPÇÃO 2: GitHub Pages (GRÁTIS - 5 minutos)
-------------------------------------------
-1. Crie conta no GitHub: https://github.com
-2. Crie novo repositório (clique no + no canto superior direito)
-3. Faça upload destes arquivos
-4. Vá em Settings > Pages
-5. Ative GitHub Pages em "main" branch
-6. Aguarde 2 minutos
-7. Acesse: https://seu-usuario.github.io/nome-repositorio/
+------------------------------------------------------------
+📖 COMO USAR A APLICAÇÃO
+------------------------------------------------------------
+1.  **ABRA O LINK:**
+    Abra o link que você obteve na etapa anterior (ou o link do seu próprio servidor) em seu navegador (Google Chrome recomendado).
 
-OPÇÃO 3: Seu Próprio Servidor
-------------------------------
-1. Conecte via FTP ao seu servidor
-2. Copie todos os arquivos para /public_html/ ou /www/
-3. Acesse: https://seu-dominio.com/
+2.  **CARREGUE UM MODELO 3D:**
+    Para que a colaboração funcione, o modelo 3D precisa estar acessível através de um link público (URL).
+    - Cole a URL do seu arquivo `.glb`, `.gltf` ou `.ply` no campo "Cole a URL do modelo 3D aqui".
+    - Clique em "Carregar Modelo via URL".
+    (O carregamento de um arquivo do seu computador só funciona para visualização individual).
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📖 COMO USAR:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3.  **CRIE UMA SALA DE COLABORAÇÃO:**
+    - Digite seu nome.
+    - Clique no botão "🚀 Criar Nova Sala".
 
-1. Abra o link no navegador
-2. Digite seu nome
-3. Clique em "Criar Sala"
-4. Copie o link da sala (botão "Copiar Link")
-5. Envie para sua equipe via WhatsApp/Email
-6. Equipe abre o link e colabora em tempo real!
+4.  **CONVIDE SUA EQUIPE:**
+    - Após criar a sala, clique no botão "📋 Copiar Link de Convite".
+    - Envie este link para as pessoas com quem você deseja colaborar.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✨ RECURSOS:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5.  **COLABORE EM TEMPO REAL:**
+    - Quando seus colegas abrirem o link, eles entrarão na mesma sala e verão o mesmo modelo 3D.
+    - Use as ferramentas de medição (Distância, Área, etc.). Todas as medições que você criar aparecerão instantaneamente na tela de todos!
 
-✓ Colaboração em tempo real (até 10 usuários por sala)
-✓ Visualização de modelos 3D (PLY, GLTF, GLB, OBJ, STL)
-✓ Medição de distâncias entre pontos
-✓ Medição de áreas planas
-✓ Medição de áreas de superfície 3D
-✓ Funciona em desktop, tablet e mobile
-✓ Sem limites de uso
-✓ Sem mensalidades
+------------------------------------------------------------
+❓ PERGUNTAS FREQUENTES (FAQ)
+------------------------------------------------------------
+P: Onde devo hospedar meu modelo 3D para obter uma URL?
+R: Você pode usar o armazenamento de objetos do seu provedor de nuvem (Amazon S3, Google Cloud Storage, Azure Blob Storage) ou qualquer servidor web que sua empresa já utilize. Certifique-se de que o arquivo tenha permissões de leitura pública.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-❓ PERGUNTAS FREQUENTES:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+P: Preciso de um servidor especial ou banco de dados?
+R: **Não.** A beleza desta aplicação é que ela é "serverless". Ela roda inteiramente nos navegadores dos usuários. Você só precisa de um lugar para hospedar os arquivos estáticos (HTML, JS), como o Netlify.
 
-P: Preciso instalar algo no servidor?
-R: NÃO! Apenas faça upload dos arquivos HTML/JS.
+P: Quantas pessoas podem entrar em uma sala?
+R: A tecnologia WebRTC funciona melhor com grupos de até 8-10 usuários por sala. Para mais usuários, o desempenho pode variar dependendo da conexão de internet de cada um.
 
-P: Preciso de banco de dados?
-R: NÃO! Tudo funciona direto no navegador.
+P: As medições ficam salvas?
+R: As medições são sincronizadas em tempo real e existem enquanto houver pelo menos uma pessoa na sala. Se todos saírem, a sessão é encerrada e as medições são perdidas.
 
-P: Os dados ficam salvos?
-R: Não automaticamente. A colaboração é em tempo real.
-   Quando todos saem, os dados são perdidos.
+------------------------------------------------------------
+🔧 RESOLUÇÃO DE PROBLEMAS
+------------------------------------------------------------
+-   **"A colaboração não funciona / Ninguém consegue se conectar."**
+    Certifique-se de que todos estão usando o link com `https://`. Conexões seguras são obrigatórias para a tecnologia WebRTC funcionar.
 
-P: Quanto custa para hospedar?
-R: Netlify: GRÁTIS
-   GitHub Pages: GRÁTIS
-   Seu servidor: você já tem!
+-   **"O modelo 3D não carrega a partir da URL."**
+    Verifique se a URL está correta e se o arquivo está publicamente acessível (tente abrir a URL diretamente no seu navegador). Verifique também as permissões de CORS do seu servidor de arquivos.
 
-P: Quantas pessoas podem usar?
-R: Ilimitadas pessoas podem acessar.
-   Cada sala suporta até 10 usuários simultâneos.
+-   **"A página está em branco ou mostra um erro."**
+    Pressione a tecla `F12` no seu navegador para abrir o "Console do Desenvolvedor". Procure por mensagens de erro em vermelho e, se precisar de suporte, envie-nos um print dessa tela.
 
-P: Funciona offline?
-R: Sim para visualização local.
-   Não para colaboração (precisa de internet).
-
-P: Posso personalizar as cores/textos?
-R: Sim! O código está incluído, você pode editar.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔧 PROBLEMAS COMUNS:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Problema: "Não conecta entre usuários"
-→ Certifique-se de usar HTTPS (não HTTP)
-→ Netlify e GitHub Pages já usam HTTPS automaticamente
-
-Problema: "Modelo não carrega"
-→ Verifique o formato: PLY, GLTF, GLB, OBJ, STL
-→ Tamanho máximo recomendado: 100MB
-
-Problema: "Página em branco"
-→ Pressione F12 para abrir Console
-→ Veja erros e nos envie screenshot
-
-Problema: "Sala não funciona"
-→ Recarregue a página
-→ Limpe cache do navegador
-→ Tente outro navegador (Chrome recomendado)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📞 SUPORTE:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Email: seu-email@dominio.com
-Horário: Segunda a Sexta, 9h às 18h (Brasília)
-
-Para suporte, envie:
-1. Descrição do problema
-2. Navegador usado (Chrome, Firefox, etc.)
-3. Screenshot do erro (se houver)
-4. Link onde está hospedado
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Versão: 1.0.0
-Licenciado para: [NOME DO CLIENTE]
-Data de compra: [DATA]
-
-Bom uso! 🎉
+============================================================
+Suporte: seu-email-de-suporte@suaempresa.com

@@ -3,102 +3,90 @@ import * as THREE from 'three';
 
 /**
  * @class CollaborationManager
- * @description Manages peer-to-peer collaboration using WebRTC via PeerJS
+ * @description Manages peer-to-peer collaboration using WebRTC (via PeerJS).
  */
 export class CollaborationManager {
     constructor(scene, logger, eventBus, config = {}) {
         this.scene = scene;
         this.logger = logger;
         this.eventBus = eventBus;
-        
+
         // Configuration
         this.config = {
             usePeerJSCloud: config.usePeerJSCloud !== false,
             signalingServer: config.signalingServer || null,
             autoJoinRoom: config.autoJoinRoom !== false,
-            maxPeers: config.maxPeers || 10,
             ...config
         };
 
-        // Peer connection
+        // PeerJS Connection State
         this.peer = null;
         this.myPeerId = null;
         this.roomId = null;
-        
-        // Connected peers
-        this.connections = new Map(); // peerId -> DataConnection
-        this.peerInfo = new Map();    // peerId -> {name, color}
-        
-        // Room management
         this.isHost = false;
-        this.hostPeerId = null;
-        
-        // State
-        this.localAnnotations = new Map();
-        this.userName = config.userName || `User_${Math.random().toString(36).substr(2, 6)}`;
-        this.userColor = config.userColor || this._generateColor();
-        
-        // Visual elements
-        this.annotationGroup = new THREE.Group();
-        this.annotationGroup.name = 'p2p-annotations';
-        this.scene.add(this.annotationGroup);
+        this.connections = new Map(); // Stores peerId -> DataConnection
+        this.peerInfo = new Map();    // Stores peerId -> {name, color}
 
-        // Check if joining from URL
+        // Application State
+        this.currentModelURL = null; // The URL of the currently loaded model
+        this.userName = `User_${Math.random().toString(36).substr(2, 4)}`;
+        this.userColor = this._generateRandomColor();
+
+        // Scene Group for Remote Objects
+        this.remoteAnnotationGroup = new THREE.Group();
+        this.remoteAnnotationGroup.name = 'remote-annotations';
+        this.scene.add(this.remoteAnnotationGroup);
+
         if (this.config.autoJoinRoom) {
             this._checkURLForRoom();
         }
     }
 
     /**
-     * Check URL for room parameter
+     * Checks if the window's URL hash contains room information to auto-join.
+     * @private
      */
     _checkURLForRoom() {
         const hash = window.location.hash.substring(1);
         const params = new URLSearchParams(hash);
         const roomId = params.get('room');
-        const hostPeerId = params.get('host');
-        
         if (roomId) {
-            this.logger.info(`CollaborationManager: Room detected in URL: ${roomId}`);
-            // Store for later connection
+            this.logger.info(`CollaborationManager: Room ID "${roomId}" found in URL. Will attempt to auto-join.`);
             this._urlRoomId = roomId;
-            this._urlHostPeerId = hostPeerId;
         }
     }
 
     /**
-     * Initialize peer connection and join/create room
+     * Connects to the PeerJS server and either creates a new room or joins an existing one.
+     * @param {string|null} roomId - The ID of the room to join. If null, a new room is created.
      */
     async connect(roomId = null) {
         this.logger.info('CollaborationManager: Initializing P2P connection...');
+        if (this.peer) {
+            this.logger.warn('CollaborationManager: A connection already exists.');
+            return;
+        }
 
         try {
-            // Initialize PeerJS
-            const peerConfig = this._getPeerConfig();
-            this.peer = new Peer(peerConfig);
+            this.peer = new Peer(this._getPeerConfig()); // Initialize PeerJS
 
-            // Wait for peer to be ready
+            // Wait for the connection to the PeerJS server to open
             await new Promise((resolve, reject) => {
-                this.peer.on('open', (id) => {
+                this.peer.on('open', id => {
                     this.myPeerId = id;
-                    this.logger.info(`CollaborationManager: Peer ID: ${id}`);
-                    resolve();
+                    this.logger.info(`CollaborationManager: PeerJS connection open. My ID is ${id}`);
+                    resolve(id);
                 });
-
-                this.peer.on('error', (error) => {
-                    this.logger.error('CollaborationManager: Peer error', error);
-                    reject(error);
-                });
-
-                setTimeout(() => reject(new Error('Connection timeout')), 10000);
+                this.peer.on('error', err => reject(err));
+                setTimeout(() => reject(new Error('PeerJS connection timed out')), 10000);
             });
 
-            // Setup peer event handlers
-            this._setupPeerHandlers();
+            this._setupPeerEventHandlers();
 
-            // Join or create room
-            if (roomId || this._urlRoomId) {
-                await this._joinRoom(roomId || this._urlRoomId);
+            // Decide whether to create or join a room
+            const targetRoomId = roomId || this._urlRoomId;
+            if (targetRoomId) {
+                await this._joinRoom(targetRoomId);
             } else {
                 this._createRoom();
             }
@@ -109,505 +97,237 @@ export class CollaborationManager {
                 isHost: this.isHost
             });
 
-            this.logger.info(`CollaborationManager: Connected to room ${this.roomId}`);
-
         } catch (error) {
-            this.logger.error('CollaborationManager: Connection failed', error);
+            this.logger.error('CollaborationManager: Failed to establish P2P connection.', error);
             this.eventBus.emit('collaboration:error', { error });
-            throw error;
+            if (this.peer) this.peer.destroy();
+            this.peer = null;
         }
     }
 
     /**
-     * Get PeerJS configuration
-     */
-    _getPeerConfig() {
-        if (this.config.usePeerJSCloud) {
-            // Use free PeerJS cloud server
-            return {
-                debug: 0 // Set to 2 for verbose logging
-            };
-        } else if (this.config.signalingServer) {
-            // Use custom signaling server
-            const url = new URL(this.config.signalingServer);
-            return {
-                host: url.hostname,
-                port: url.port || (url.protocol === 'https:' ? 443 : 9000),
-                path: url.pathname || '/peerjs',
-                secure: url.protocol === 'https:',
-                debug: 0
-            };
-        } else {
-            return { debug: 0 };
-        }
-    }
-
-    /**
-     * Create a new room
+     * Creates a new collaboration room and sets the current user as the host.
+     * @private
      */
     _createRoom() {
         this.roomId = this._generateRoomId();
         this.isHost = true;
-        this.hostPeerId = this.myPeerId;
-        
-        // Update URL with room info
-        window.location.hash = `room=${this.roomId}&host=${this.myPeerId}`;
-        
-        this.logger.info(`CollaborationManager: Created room ${this.roomId}`);
-        this.eventBus.emit('collaboration:room-created', { roomId: this.roomId });
+        this.logger.info(`CollaborationManager: New room created with ID: ${this.roomId}`);
+        // Update the URL so it can be shared
+        window.location.hash = `room=${this.roomId}`;
     }
 
     /**
-     * Join existing room
+     * Joins an existing collaboration room by connecting to all known peers.
+     * @param {string} roomId - The ID of the room to join.
+     * @private
      */
     async _joinRoom(roomId) {
         this.roomId = roomId;
         this.isHost = false;
-        
-        // Get host from URL
-        this.hostPeerId = this._urlHostPeerId;
-        
-        if (this.hostPeerId) {
-            // Connect to host
-            await this._connectToPeer(this.hostPeerId);
-        } else {
-            this.logger.warn('CollaborationManager: No host specified');
-        }
-        
-        this.logger.info(`CollaborationManager: Joined room ${this.roomId}`);
+        this.logger.info(`CollaborationManager: Attempting to join room: ${roomId}`);
+        // In a more robust system, you'd use a server to get the list of peers.
+        // For pure P2P, we assume the host's ID might be in the URL or known.
+        // For now, we rely on new connections being announced by peers.
     }
 
     /**
-     * Setup peer connection event handlers
+     * Sets up the main event handlers for the PeerJS connection.
+     * @private
      */
-    _setupPeerHandlers() {
-        // Incoming connection
+    _setupPeerEventHandlers() {
+        // Handle incoming data connections from other peers
         this.peer.on('connection', (conn) => {
             this.logger.info(`CollaborationManager: Incoming connection from ${conn.peer}`);
-            this._handleConnection(conn);
+            this._handleNewConnection(conn);
         });
-
-        // Disconnected
+        // Handle disconnection from the signaling server
         this.peer.on('disconnected', () => {
-            this.logger.warn('CollaborationManager: Disconnected from signaling server');
-            this.eventBus.emit('collaboration:disconnected');
-        });
-
-        // Error
-        this.peer.on('error', (error) => {
-            this.logger.error('CollaborationManager: Peer error', error);
-            this.eventBus.emit('collaboration:error', { error });
+            this.logger.warn('CollaborationManager: Disconnected from the signaling server. Reconnecting...');
+            this.peer.reconnect();
         });
     }
 
     /**
-     * Connect to another peer
+     * Manages a newly established connection to another peer.
+     * @param {object} conn - The PeerJS DataConnection object.
+     * @private
      */
-    async _connectToPeer(peerId) {
-        if (this.connections.has(peerId)) {
-            this.logger.debug(`Already connected to ${peerId}`);
-            return;
-        }
-
-        try {
-            const conn = this.peer.connect(peerId, {
-                reliable: true,
-                serialization: 'json'
-            });
-
-            await new Promise((resolve, reject) => {
-                conn.on('open', () => {
-                    this._handleConnection(conn);
-                    resolve();
-                });
-
-                conn.on('error', reject);
-                setTimeout(() => reject(new Error('Connection timeout')), 10000);
-            });
-
-            this.logger.info(`CollaborationManager: Connected to peer ${peerId}`);
-
-        } catch (error) {
-            this.logger.error(`Failed to connect to peer ${peerId}`, error);
-        }
-    }
-
-    /**
-     * Handle new peer connection
-     */
-    _handleConnection(conn) {
-        const peerId = conn.peer;
-
+    _handleNewConnection(conn) {
         conn.on('open', () => {
-            this.connections.set(peerId, conn);
-            
-            // Send introduction
-            this._sendToPeer(peerId, {
+            this.connections.set(conn.peer, conn);
+            this.eventBus.emit('collaboration:peer-joined', { peerId: conn.peer });
+
+            // Send an introduction message to the new peer
+            this._sendToPeer(conn.peer, {
                 type: 'intro',
                 name: this.userName,
-                color: this.userColor,
-                peerId: this.myPeerId,
-                roomId: this.roomId
+                color: this.userColor
             });
 
-            // If host, share peer list
-            if (this.isHost) {
-                this._sendToPeer(peerId, {
-                    type: 'peer-list',
-                    peers: Array.from(this.connections.keys()).filter(id => id !== peerId),
-                    hostPeerId: this.hostPeerId
+            // If we have a model loaded, tell the new peer about it
+            if (this.currentModelURL) {
+                this._sendToPeer(conn.peer, {
+                    type: 'set-model',
+                    url: this.currentModelURL
                 });
             }
-
-            // Request current state
-            this._sendToPeer(peerId, {
-                type: 'request-state'
-            });
-
-            this.eventBus.emit('collaboration:peer-joined', { peerId });
         });
 
-        conn.on('data', (data) => {
-            this._handleMessage(peerId, data);
-        });
+        // Handle incoming data from the peer
+        conn.on('data', (data) => this._handleMessage(conn.peer, data));
 
+        // Handle the peer disconnecting
         conn.on('close', () => {
-            this.connections.delete(peerId);
-            this.peerInfo.delete(peerId);
-            this.logger.info(`Peer ${peerId} disconnected`);
-            this.eventBus.emit('collaboration:peer-left', { peerId });
-        });
-
-        conn.on('error', (error) => {
-            this.logger.error(`Connection error with peer ${peerId}`, error);
+            this.logger.info(`CollaborationManager: Connection closed with ${conn.peer}`);
+            this.connections.delete(conn.peer);
+            this.peerInfo.delete(conn.peer);
+            this.eventBus.emit('collaboration:peer-left', { peerId: conn.peer });
         });
     }
 
     /**
-     * Handle incoming message from peer
+     * Routes incoming messages from peers to the appropriate handler.
+     * @param {string} peerId - The ID of the peer who sent the message.
+     * @param {object} data - The message data.
+     * @private
      */
     _handleMessage(peerId, data) {
         switch (data.type) {
             case 'intro':
-                this.peerInfo.set(peerId, {
-                    name: data.name,
-                    color: data.color,
-                    peerId: data.peerId
-                });
-                this.eventBus.emit('collaboration:peer-info', { peerId, info: data });
+                this.peerInfo.set(peerId, { name: data.name, color: data.color });
+                this.eventBus.emit('collaboration:peer-info', { peerId, info: { name: data.name, color: data.color } });
                 break;
-
-            case 'peer-list':
-                // Connect to other peers
-                data.peers.forEach(otherPeerId => {
-                    if (otherPeerId !== this.myPeerId && !this.connections.has(otherPeerId)) {
-                        this._connectToPeer(otherPeerId);
-                    }
-                });
-                if (data.hostPeerId) {
-                    this.hostPeerId = data.hostPeerId;
+            case 'set-model':
+                if (data.url && this.currentModelURL !== data.url) {
+                    this.logger.info(`CollaborationManager: Received model URL from peer: ${data.url}`);
+                    this.currentModelURL = data.url;
+                    this.eventBus.emit('model:load', { url: data.url, fileName: data.url.split('/').pop() });
                 }
                 break;
-
-            case 'request-state':
-                // Send current annotations
-                this._sendToPeer(peerId, {
-                    type: 'state-sync',
-                    annotations: Array.from(this.localAnnotations.values())
-                });
-                break;
-
-            case 'state-sync':
-                // Receive initial state
-                data.annotations.forEach(annotation => {
-                    this._handleRemoteAnnotation(annotation);
-                });
-                break;
-
             case 'annotation-create':
                 this._handleRemoteAnnotation(data.annotation);
-                this.eventBus.emit('collaboration:annotation-created', data.annotation);
-                break;
-
-            case 'annotation-update':
-                this._handleRemoteAnnotation(data.annotation, true);
-                this.eventBus.emit('collaboration:annotation-updated', data.annotation);
-                break;
-
-            case 'annotation-delete':
-                this._removeRemoteAnnotation(data.annotationId);
-                this.eventBus.emit('collaboration:annotation-deleted', { id: data.annotationId });
                 break;
         }
     }
 
     /**
-     * Broadcast message to all connected peers
+     * Creates a visual representation of an annotation received from another peer.
+     * @param {object} annotation - The annotation data.
+     * @private
      */
-    _broadcast(data) {
-        this.connections.forEach((conn, peerId) => {
-            if (conn.open) {
-                try {
-                    conn.send(data);
-                } catch (error) {
-                    this.logger.error(`Failed to send to ${peerId}`, error);
-                }
-            }
-        });
-    }
-
-    /**
-     * Send message to specific peer
-     */
-    _sendToPeer(peerId, data) {
-        const conn = this.connections.get(peerId);
-        if (conn && conn.open) {
-            try {
-                conn.send(data);
-            } catch (error) {
-                this.logger.error(`Failed to send to ${peerId}`, error);
-            }
-        }
-    }
-
-    /**
-     * Create and broadcast an annotation
-     */
-    createAnnotation(annotationData) {
-        const annotation = {
-            id: this._generateId(),
-            ...annotationData,
-            creator: this.myPeerId,
-            creatorName: this.userName,
-            timestamp: Date.now()
-        };
-
-        this.localAnnotations.set(annotation.id, annotation);
-        this._handleRemoteAnnotation(annotation);
-
-        this._broadcast({
-            type: 'annotation-create',
-            annotation
-        });
-
-        this.logger.debug('Annotation created and broadcast', annotation);
-    }
-
-    /**
-     * Delete annotation
-     */
-    deleteAnnotation(annotationId) {
-        this.localAnnotations.delete(annotationId);
-        this._removeRemoteAnnotation(annotationId);
-
-        this._broadcast({
-            type: 'annotation-delete',
-            annotationId
-        });
-    }
-
-    /**
-     * Disconnect from all peers
-     */
-    disconnect() {
-        if (this.peer) {
-            this.connections.forEach(conn => conn.close());
-            this.peer.destroy();
-            this.peer = null;
-        }
-
-        this.connections.clear();
-        this.peerInfo.clear();
-        this.localAnnotations.clear();
-
-        this._clearAnnotations();
-
-        this.logger.info('CollaborationManager: Disconnected');
-        this.eventBus.emit('collaboration:disconnected');
-    }
-
-    /**
-     * Get shareable room URL
-     */
-    getRoomURL() {
-        if (!this.roomId) return null;
-        const baseURL = window.location.origin + window.location.pathname;
-        return `${baseURL}#room=${this.roomId}&host=${this.hostPeerId || this.myPeerId}`;
-    }
-
-    /**
-     * Check if connected
-     */
-    isConnected() {
-        return this.peer && this.peer.open;
-    }
-
-    /**
-     * Handle remote annotation (create visual)
-     */
-    _handleRemoteAnnotation(annotation, isUpdate = false) {
-        if (isUpdate) {
-            this._removeRemoteAnnotation(annotation.id);
-        }
-
-        // Create visual based on type
+    _handleRemoteAnnotation(annotation) {
         let visual = null;
-
-        switch (annotation.type) {
-            case 'measurement':
-                visual = this._createMeasurementVisual(annotation);
-                break;
-            case 'area':
-                visual = this._createAreaVisual(annotation);
-                break;
-            case 'surfaceArea':
-                visual = this._createSurfaceAreaVisual(annotation);
-                break;
+        if (annotation.type === 'measurement') {
+            visual = this._createMeasurementVisual(annotation);
         }
+        // Add other annotation types here...
 
         if (visual) {
             visual.userData.annotationId = annotation.id;
-            this.annotationGroup.add(visual);
+            this.remoteAnnotationGroup.add(visual);
         }
     }
 
+    /**
+     * Creates a 3D line and a text label for a remote distance measurement.
+     * @param {object} annotation - The measurement annotation data.
+     * @returns {THREE.Group} A group containing the line and label.
+     * @private
+     */
     _createMeasurementVisual(annotation) {
         const group = new THREE.Group();
+        const points = annotation.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
         
-        // Create line
-        const points = annotation.data.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
+        // Create the line
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 });
+        const material = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2, depthTest: false });
         const line = new THREE.Line(geometry, material);
-        
+        line.renderOrder = 998;
         group.add(line);
         
-        // Create label
+        // Create the text label
         const midPoint = new THREE.Vector3().addVectors(points[0], points[1]).multiplyScalar(0.5);
-        const label = this._createTextSprite(`${annotation.data.distance.toFixed(2)}m`, '#00ffff');
+        const label = this._createTextSprite(`${annotation.distance.toFixed(2)}m`, '#00ffff');
         label.position.copy(midPoint);
         group.add(label);
-        
+
         return group;
     }
 
-    _createAreaVisual(annotation) {
-        const group = new THREE.Group();
-        
-        // Create polygon outline
-        const points = annotation.data.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
-        points.push(points[0]); // Close the loop
-        
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({ color: 0x00ff00, linewidth: 2 });
-        const line = new THREE.Line(geometry, material);
-        
-        group.add(line);
-        
-        // Create label
-        const center = new THREE.Vector3();
-        annotation.data.points.forEach(p => center.add(new THREE.Vector3(p.x, p.y, p.z)));
-        center.divideScalar(annotation.data.points.length);
-        
-        const label = this._createTextSprite(`${annotation.data.area.toFixed(2)}m²`, '#00ff00');
-        label.position.copy(center);
-        group.add(label);
-        
-        return group;
-    }
-
-    _createSurfaceAreaVisual(annotation) {
-        const group = new THREE.Group();
-        
-        // Create polygon outline
-        const points = annotation.data.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
-        points.push(points[0]); // Close the loop
-        
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({ color: 0x00aaff, linewidth: 2 });
-        const line = new THREE.Line(geometry, material);
-        
-        group.add(line);
-        
-        // Create label
-        const center = new THREE.Vector3();
-        annotation.data.points.forEach(p => center.add(new THREE.Vector3(p.x, p.y, p.z)));
-        center.divideScalar(annotation.data.points.length);
-        
-        const label = this._createTextSprite(`${annotation.data.surfaceArea.toFixed(2)}m² (3D)`, '#00aaff');
-        label.position.copy(center);
-        group.add(label);
-        
-        return group;
-    }
-
+    /**
+     * Creates a text sprite for displaying information in the 3D scene.
+     * @param {string} text - The text to display.
+     * @param {string} color - The color of the text.
+     * @returns {THREE.Sprite} The created text sprite.
+     * @private
+     */
     _createTextSprite(text, color) {
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
-        canvas.width = 512;
-        canvas.height = 128;
-        
-        context.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        canvas.width = 256;
+        canvas.height = 64;
+        context.font = 'Bold 24px Arial';
+        context.fillStyle = 'rgba(0, 0, 0, 0.5)';
         context.fillRect(0, 0, canvas.width, canvas.height);
-        context.font = 'Bold 48px Arial';
         context.fillStyle = color;
         context.textAlign = 'center';
         context.textBaseline = 'middle';
         context.fillText(text, canvas.width / 2, canvas.height / 2);
         
         const texture = new THREE.CanvasTexture(canvas);
-        const spriteMaterial = new THREE.SpriteMaterial({ 
-            map: texture,
-            depthTest: false,
-            depthWrite: false
-        });
+        const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false });
         const sprite = new THREE.Sprite(spriteMaterial);
-        sprite.scale.set(1, 0.25, 1);
-        sprite.renderOrder = 1000;
-        
+        sprite.scale.set(0.5, 0.125, 1);
+        sprite.renderOrder = 999;
         return sprite;
     }
 
-    _removeRemoteAnnotation(annotationId) {
-        const toRemove = [];
-        this.annotationGroup.traverse((obj) => {
-            if (obj.userData.annotationId === annotationId) {
-                toRemove.push(obj);
-            }
+    /**
+     * Creates and broadcasts an annotation to all connected peers.
+     * @param {object} annotationData - The data for the annotation to be created.
+     */
+    createAnnotation(annotationData) {
+        const annotation = {
+            id: `ann_${this.myPeerId}_${Date.now()}`,
+            ...annotationData
+        };
+        this._broadcast({
+            type: 'annotation-create',
+            annotation: annotation
         });
-        
-        toRemove.forEach(obj => {
-            this.annotationGroup.remove(obj);
-            if (obj.geometry) obj.geometry.dispose();
-            if (obj.material) {
-                if (obj.material.map) obj.material.map.dispose();
-                obj.material.dispose();
+    }
+
+    /**
+     * Sends data to all connected peers.
+     * @param {object} data - The data to broadcast.
+     * @private
+     */
+    _broadcast(data) {
+        this.connections.forEach(conn => {
+            if (conn.open) {
+                conn.send(data);
             }
         });
     }
 
-    _clearAnnotations() {
-        while (this.annotationGroup.children.length > 0) {
-            const obj = this.annotationGroup.children[0];
-            this.annotationGroup.remove(obj);
-            if (obj.geometry) obj.geometry.dispose();
-            if (obj.material) {
-                if (obj.material.map) obj.material.map.dispose();
-                obj.material.dispose();
-            }
+    /**
+     * Sends data to a specific peer.
+     * @param {string} peerId - The ID of the peer to send data to.
+     * @param {object} data - The data to send.
+     * @private
+     */
+    _sendToPeer(peerId, data) {
+        const conn = this.connections.get(peerId);
+        if (conn && conn.open) {
+            conn.send(data);
         }
     }
-
-    _generateRoomId() {
-        return Math.random().toString(36).substring(2, 8).toUpperCase();
-    }
-
-    _generateId() {
-        return `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    }
-
-    _generateColor() {
-        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE'];
-        return colors[Math.floor(Math.random() * colors.length)];
-    }
+    
+    // Helper methods
+    isConnected() { return this.peer && !this.peer.disconnected; }
+    getRoomURL() { return this.roomId ? `${window.location.origin}${window.location.pathname}#room=${this.roomId}` : null; }
+    _generateRoomId() { return Math.random().toString(36).substring(2, 8).toUpperCase(); }
+    _generateRandomColor() { const letters = '0123456789ABCDEF'; let color = '#'; for (let i = 0; i < 6; i++) { color += letters[Math.floor(Math.random() * 16)]; } return color; }
+    _getPeerConfig() { return { debug: 0 }; /* Use public PeerJS server */ }
 }
