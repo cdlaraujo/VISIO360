@@ -80,9 +80,19 @@ export class UIManager {
     }
 
     _joinRoom() {
-        const roomId = this.ui.roomIdInput.value.trim().toUpperCase();
+        let roomId = this.ui.roomIdInput.value.trim();
         if (!roomId || !window.app?.collaborationManager) return;
-        this._showProgressBar(`Entrando na sala ${roomId}...`);
+        
+        // Parse room ID from URL if user pasted a full link
+        if (roomId.includes('#room=')) {
+            const match = roomId.match(/#room=([^&]+)/);
+            if (match) {
+                roomId = match[1];
+                this.logger.info(`UIManager: Extracted peer ID from URL: ${roomId}`);
+            }
+        }
+        
+        this._showProgressBar(`Entrando na sala...`);
         window.app.collaborationManager.userName = this.ui.userNameInput.value.trim() || 'Usuário';
         window.app.collaborationManager.connect(roomId).finally(() => this._hideProgressBar());
     }
@@ -92,7 +102,17 @@ export class UIManager {
         this.ui.roomInfoPanel.style.display = 'block';
         this.ui.statusDot.classList.add('connected');
         this.ui.connectionStatus.textContent = data.isHost ? '🌟 Host da Sala' : '✅ Conectado';
-        this.ui.roomCodeDisplay.textContent = data.roomId;
+        
+        // Display full peer ID with copy button (better UX for long IDs)
+        const displayCode = data.roomId.length > 20 
+            ? data.roomId.substring(0, 8) + '...' + data.roomId.substring(data.roomId.length - 8)
+            : data.roomId;
+        
+        this.ui.roomCodeDisplay.textContent = displayCode;
+        this.ui.roomCodeDisplay.title = data.roomId; // Full ID on hover
+        this.ui.roomCodeDisplay.style.fontSize = '0.9em'; // Smaller font for long IDs
+        this.ui.roomCodeDisplay.style.wordBreak = 'break-all';
+        
         this._updatePeersList();
         this._showNotification('Conectado!', 'success');
     }
@@ -121,7 +141,14 @@ export class UIManager {
 
     _copyRoomURL() {
         const url = window.app?.collaborationManager?.getRoomURL();
-        if (url) navigator.clipboard.writeText(url).then(() => this._showNotification('✅ Link copiado!', 'success'));
+        if (url) {
+            navigator.clipboard.writeText(url).then(() => 
+                this._showNotification('✅ Link copiado!', 'success')
+            ).catch(() => {
+                // Fallback: show the URL
+                prompt('Copie este link:', url);
+            });
+        }
     }
 
     _toggleJoinInput() {
