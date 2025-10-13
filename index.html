@@ -3,18 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualizador 3D com Medições</title>
+    <title>Visualizador 3D com Colaboração</title>
     <style>
-        /* Reset básico e estilos globais */
+        /* All your CSS stays the same - keeping it short here */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             color: #f0f0f0;
             background-color: #1a1a1a;
             overflow: hidden;
         }
-
-        /* Container da visualização 3D */
         #app {
             position: fixed;
             top: 0;
@@ -23,24 +21,21 @@
             height: 100vh;
             z-index: 1;
         }
-
-        /* Container da UI, fica sobre a cena 3D */
         #ui-container {
             position: fixed;
             top: 20px;
             left: 20px;
             z-index: 10;
-            background-color: rgba(40, 40, 40, 0.92);
+            background-color: rgba(40, 40, 40, 0.95);
             padding: 20px;
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.1);
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
             backdrop-filter: blur(10px);
-            width: 320px;
+            width: 340px;
             max-height: calc(100vh - 40px);
             overflow-y: auto;
         }
-
         h1 {
             margin-top: 0;
             font-size: 1.5em;
@@ -49,161 +44,175 @@
             padding-bottom: 10px;
             margin-bottom: 15px;
         }
-
+        .section { margin-bottom: 20px; }
+        .section-title {
+            font-size: 0.85em;
+            color: #aaa;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
         .hint {
             font-size: 0.8em;
             color: #aaa;
-            margin-top: 15px;
-            margin-bottom: 0;
-            text-align: center;
+            margin-top: 8px;
             line-height: 1.4;
         }
-
-        .input-wrapper {
+        .input-field {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #555;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.3);
+            color: white;
+            font-size: 0.95em;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+            font-size: 0.95em;
+        }
+        .btn:hover { transform: translateY(-1px); }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-primary:hover { background: #0056b3; }
+        .btn-secondary { background: #555; color: white; }
+        .btn-secondary:hover { background: #666; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #218838; }
+        .btn.active {
+            background: #007bff;
+            box-shadow: 0 0 15px rgba(0, 123, 255, 0.5);
+        }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-danger:hover { background: #c82333; }
+        .btn-copy {
+            width: 100%;
+            padding: 8px;
+            background: #17a2b8;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-top: 8px;
+        }
+        .btn-copy:hover { background: #138496; }
+        input[type="file"] { display: none; }
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
             margin-bottom: 15px;
         }
-
-        .tools-section {
-            margin-top: 20px;
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #666;
+        }
+        .status-dot.connected {
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .room-code-display { margin: 15px 0; }
+        .room-code {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 12px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 1.1em;
+            text-align: center;
+            margin: 8px 0;
+            letter-spacing: 2px;
+            word-break: break-all;
+        }
+        .peers-list {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #555;
+        }
+        .peers-list label {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+        }
+        #peers-container {
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .peer-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            margin-bottom: 6px;
+        }
+        .peer-color-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .tools-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
-            margin-bottom: 20px;
         }
-
-        .tool-btn {
-            padding: 12px 8px;
-            border-radius: 8px;
-            background-color: #555;
-            color: white;
-            text-align: center;
-            font-weight: bold;
-            cursor: pointer;
-            border: none;
-            transition: all 0.3s ease;
-            font-size: 0.9em;
-        }
-
-        .tool-btn:hover {
-            background-color: #666;
-            transform: translateY(-1px);
-        }
-
-        .tool-btn.active {
-            background-color: #007bff;
-            box-shadow: 0 0 10px rgba(0, 123, 255, 0.4);
-        }
-
-        .tool-btn.active:hover {
-            background-color: #0056b3;
-        }
-
-        .clear-btn {
-            background-color: #dc3545 !important;
-            grid-column: 1 / -1;
-        }
-
-        .clear-btn:hover {
-            background-color: #c82333 !important;
-        }
-
-        input[type="file"] {
-            display: none;
-        }
-
-        .custom-file-upload {
-            display: block;
-            width: 100%;
-            padding: 12px 0;
-            border-radius: 8px;
-            background-color: #28a745;
-            color: white;
-            text-align: center;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .custom-file-upload:hover {
-            background-color: #218838;
-            transform: translateY(-1px);
-        }
-
-        .instructions-panel {
-            margin: 15px 0;
-            padding: 12px;
-            background-color: rgba(0, 123, 255, 0.1);
-            border-left: 3px solid #007bff;
-            border-radius: 6px;
-            display: none;
-        }
-
-        .instructions-text {
-            font-size: 0.9em;
-            color: #e3f2fd;
-            line-height: 1.4;
-            margin: 0;
-        }
-
         .measurements-panel {
             margin-top: 20px;
             padding-top: 15px;
             border-top: 1px solid #555;
-            display: none;
         }
-
-        .measurements-panel h3 {
-            margin: 0 0 15px 0;
-            font-size: 1.2em;
-            color: #ffffff;
-        }
-
-        .measurement-group {
-            margin-bottom: 15px;
-        }
-
+        .measurement-group { margin-bottom: 15px; }
         .measurement-group h4 {
             margin: 0 0 8px 0;
-            font-size: 1em;
+            font-size: 0.9em;
             color: #ccc;
             font-weight: normal;
         }
-
         .measurement-list {
-            background-color: rgba(255, 255, 255, 0.05);
+            background: rgba(255, 255, 255, 0.05);
             border-radius: 6px;
             padding: 8px;
-            min-height: 30px;
+            min-height: 40px;
             max-height: 120px;
             overflow-y: auto;
         }
-
         .measurement-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 6px 8px;
             margin-bottom: 4px;
-            background-color: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 4px;
-            animation: fadeIn 0.3s ease-out;
         }
-
-        .measurement-item:last-child {
-            margin-bottom: 0;
-        }
-
-        .measurement-item:hover {
-            background-color: rgba(255, 255, 255, 0.15);
-        }
-
         .measurement-value {
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
+            font-family: monospace;
             color: #00d4ff;
+            font-weight: bold;
             font-size: 0.95em;
         }
-
         .delete-btn {
             background: #dc3545;
             border: none;
@@ -213,116 +222,246 @@
             border-radius: 50%;
             cursor: pointer;
             font-size: 12px;
-            line-height: 1;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s ease;
             padding: 0;
         }
-
-        .delete-btn:hover {
-            background: #c82333;
-            transform: scale(1.1);
-        }
-
-        .measurement-list:empty::before {
-            content: "Nenhuma medição realizada";
-            display: block;
-            text-align: center;
-            color: #888;
-            font-style: italic;
-            font-size: 0.85em;
-            padding: 10px 0;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @media (max-width: 768px) {
-            #ui-container {
-                width: calc(100vw - 40px);
-                max-width: 350px;
-            }
-            
-            .tools-section {
-                grid-template-columns: 1fr;
-            }
-            
-            .clear-btn {
-                grid-column: 1;
-            }
-        }
-
-        /* Loading spinner para demonstração */
-        .loading-spinner {
+        .delete-btn:hover { background: #c82333; }
+        .loading {
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .spinner {
             width: 50px;
             height: 50px;
             border: 3px solid rgba(255, 255, 255, 0.3);
             border-top: 3px solid #007bff;
             border-radius: 50%;
             animation: spin 1s linear infinite;
-            z-index: 1000;
+            margin: 0 auto 15px;
         }
-
         @keyframes spin {
-            to {
-                transform: translate(-50%, -50%) rotate(360deg);
+            to { transform: rotate(360deg); }
+        }
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .instructions-panel {
+            margin: 15px 0;
+            padding: 12px;
+            background: rgba(0, 123, 255, 0.1);
+            border-left: 3px solid #007bff;
+            border-radius: 6px;
+            display: none;
+        }
+        .instructions-panel.show { display: block; }
+        .instructions-text {
+            font-size: 0.85em;
+            color: #e3f2fd;
+            line-height: 1.4;
+            margin: 0;
+        }
+        @media (max-width: 768px) {
+            #ui-container {
+                width: calc(100vw - 40px);
+                max-width: 350px;
             }
+            .tools-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
-    <!-- Container principal onde a aplicação será renderizada -->
     <div id="app"></div>
     
-    <!-- Spinner de loading inicial -->
-    <div id="loading" class="loading-spinner"></div>
+    <div id="loading" class="loading" style="display: none;">
+        <div class="spinner"></div>
+        <p>Carregando...</p>
+    </div>
 
-    <!-- Scripts para Three.js e aplicação -->
+    <div id="ui-container">
+        <h1>🎨 Visualizador 3D</h1>
+
+        <div class="section">
+            <div class="section-title">Colaboração</div>
+            
+            <div id="room-connect-panel">
+                <input type="text" 
+                       id="user-name-input" 
+                       class="input-field"
+                       placeholder="Seu nome"
+                       value="Usuário">
+                
+                <button id="create-room-btn" class="btn btn-primary">
+                    🚀 Criar Sala
+                </button>
+                
+                <button id="join-room-btn" class="btn btn-secondary">
+                    🔗 Entrar em Sala
+                </button>
+                
+                <div id="join-room-input" style="display: none; margin-top: 10px;">
+                    <input type="text" 
+                           id="room-id-input" 
+                           class="input-field"
+                           placeholder="Código da sala">
+                    <button id="join-room-confirm-btn" class="btn btn-success">
+                        Entrar Agora
+                    </button>
+                </div>
+                
+                <p class="hint">Crie uma sala para começar</p>
+            </div>
+            
+            <div id="room-info-panel" style="display: none;">
+                <div class="status-indicator">
+                    <div class="status-dot connected"></div>
+                    <span id="connection-status">Conectado</span>
+                </div>
+                
+                <div class="room-code-display">
+                    <label style="font-size: 0.85em; color: #aaa;">Código da Sala:</label>
+                    <div class="room-code" id="room-code-display"></div>
+                    <button class="btn-copy" id="copy-room-btn">
+                        📋 Copiar Link
+                    </button>
+                </div>
+                
+                <div class="peers-list">
+                    <label>👥 Usuários Online: <span id="peer-count">1</span></label>
+                    <div id="peers-container"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Modelo 3D</div>
+            <label for="model-input" class="btn btn-success">
+                📁 Carregar Modelo
+            </label>
+            <input type="file" 
+                   id="model-input" 
+                   accept=".ply,.gltf,.glb,.obj,.stl">
+            <p class="hint">Suporta: PLY, GLTF, GLB, OBJ, STL</p>
+        </div>
+
+        <div id="instructions-panel" class="instructions-panel">
+            <p class="instructions-text" id="tool-instructions"></p>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Ferramentas de Medição</div>
+            <div class="tools-grid">
+                <button class="btn btn-secondary" id="measure-tool-btn">
+                    📏 Distância
+                </button>
+                <button class="btn btn-secondary" id="area-tool-btn">
+                    📐 Área Plana
+                </button>
+                <button class="btn btn-secondary" id="surface-area-tool-btn">
+                    🗻 Área Real
+                </button>
+                <button class="btn btn-danger" id="clear-all-btn">
+                    🗑️ Limpar
+                </button>
+            </div>
+        </div>
+
+        <div id="measurements-panel" class="measurements-panel" style="display: none;">
+            <div class="section-title">Medições</div>
+            
+            <div class="measurement-group">
+                <h4>Distâncias</h4>
+                <div id="distance-list" class="measurement-list"></div>
+            </div>
+            
+            <div class="measurement-group">
+                <h4>Áreas Planas</h4>
+                <div id="area-list" class="measurement-list"></div>
+            </div>
+            
+            <div class="measurement-group">
+                <h4>Áreas de Superfície</h4>
+                <div id="surface-area-list" class="measurement-list"></div>
+            </div>
+        </div>
+
+        <p class="hint" style="text-align: center; margin-top: 20px;">
+            v1.0.0
+        </p>
+    </div>
+
+    <!-- Import map for Three.js -->
     <script type="importmap">
     {
-        "imports": {
-            "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js",
-            "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/"
-        }
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js",
+        "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/"
+      }
     }
     </script>
-    
-    <!-- Script principal da aplicação -->
+
+    <!-- PeerJS for WebRTC -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+    <!-- Main Application -->
     <script type="module">
         import { App } from './src/app/App.js';
 
-        // Remove spinner de loading quando a página estiver carregada
-        function removeLoadingSpinner() {
-            const spinner = document.getElementById('loading');
-            if (spinner) {
-                spinner.remove();
-            }
-        }
+        window.addEventListener('error', (event) => {
+            console.error('Global error:', event.error);
+        });
 
-        // Função para tratar erros não capturados
-        function handleGlobalError(error) {
-            console.error('Erro global capturado:', error);
-            removeLoadingSpinner();
-            
-            const appContainer = document.getElementById('app');
-            if (appContainer) {
-                appContainer.innerHTML = `
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('Unhandled rejection:', event.reason);
+        });
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const appContainer = document.getElementById('app');
+                
+                if (!appContainer) {
+                    throw new Error('Container #app not found');
+                }
+
+                if (!window.WebGLRenderingContext) {
+                    throw new Error('WebGL not supported');
+                }
+
+                console.log('🚀 Starting application...');
+                
+                const app = new App(appContainer);
+                await app.start();
+                
+                window.app = app;
+                
+                console.log('✅ Application started successfully!');
+                
+            } catch (error) {
+                console.error('❌ Initialization error:', error);
+                document.getElementById('app').innerHTML = `
                     <div style="
-                        position: absolute;
+                        position: fixed;
                         top: 50%;
                         left: 50%;
                         transform: translate(-50%, -50%);
@@ -333,12 +472,9 @@
                         border-radius: 12px;
                         border: 1px solid #ff4444;
                     ">
-                        <h2>🚨 Erro na Aplicação</h2>
-                        <p>Não foi possível carregar o visualizador 3D.</p>
-                        <p><strong>Motivo:</strong> ${error.message || 'Erro desconhecido'}</p>
-                        <p style="font-size: 0.9em; color: #aaa; margin-top: 15px;">
-                            Certifique-se de que seu navegador suporta WebGL e ES6 modules.
-                        </p>
+                        <h2>🚨 Error</h2>
+                        <p>${error.message}</p>
+                        <pre style="font-size: 0.8em; text-align: left; margin-top: 15px;">${error.stack || ''}</pre>
                         <button onclick="location.reload()" style="
                             background: #007bff;
                             color: white;
@@ -347,135 +483,13 @@
                             border-radius: 6px;
                             cursor: pointer;
                             margin-top: 20px;
-                            font-size: 1em;
                         ">
-                            🔄 Tentar Novamente
+                            🔄 Reload
                         </button>
                     </div>
                 `;
             }
-        }
-
-        // Aguarda o DOM estar completamente carregado
-        document.addEventListener('DOMContentLoaded', async () => {
-            try {
-                const appContainer = document.getElementById('app');
-                
-                if (!appContainer) {
-                    throw new Error('Container #app não encontrado no DOM');
-                }
-
-                // Verifica se o navegador suporta WebGL
-                if (!window.WebGLRenderingContext) {
-                    throw new Error('WebGL não é suportado neste navegador');
-                }
-
-                // Tenta criar contexto WebGL para verificar disponibilidade
-                const canvas = document.createElement('canvas');
-                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-                if (!gl) {
-                    throw new Error('WebGL não está disponível');
-                }
-
-                console.log('🚀 Inicializando Visualizador 3D com Sistema de Medições...');
-                
-                // Cria e inicia a aplicação
-                const app = new App(appContainer);
-                await app.start();
-                
-                // Remove o spinner após inicialização bem-sucedida
-                removeLoadingSpinner();
-                
-                // Expõe a aplicação globalmente para debug (apenas em desenvolvimento)
-                if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-                    window.app = app;
-                    console.log('💡 Aplicação exposta como window.app para debug');
-                    console.log('💡 Use window.app.getModules() para acessar módulos internos');
-                }
-                
-                console.log('✅ Visualizador 3D inicializado com sucesso!');
-                console.log('📋 Instruções:');
-                console.log('   1. Carregue um modelo 3D (.ply, .gltf, .glb)');
-                console.log('   2. Use as ferramentas de medição para analisar o modelo');
-                console.log('   3. Clique nos pontos do modelo para criar medições');
-                
-            } catch (error) {
-                console.error('❌ Falha na inicialização:', error);
-                handleGlobalError(error);
-            }
         });
-
-        // Tratamento de erros globais
-        window.addEventListener('error', (event) => {
-            console.error('Erro JavaScript global:', event.error);
-            handleGlobalError(event.error);
-        });
-
-        // Tratamento de erros de Promise não capturadas
-        window.addEventListener('unhandledrejection', (event) => {
-            console.error('Promise rejeitada não tratada:', event.reason);
-            handleGlobalError(new Error(event.reason || 'Promise rejection'));
-            event.preventDefault();
-        });
-
-        // Função de utilidade para demonstração
-        window.loadSampleModel = function() {
-            console.log('🎯 Para carregar um modelo de exemplo, use o botão "Carregar Modelo 3D" na interface');
-        };
-
-        // Adiciona meta informações para debug
-        console.log(`
-╔══════════════════════════════════════════════════════════════╗
-║                    VISUALIZADOR 3D v2.0                     ║
-║                   Sistema de Medições                        ║
-╠══════════════════════════════════════════════════════════════╣
-║ Recursos:                                                    ║
-║ • Carregamento de modelos 3D (PLY, GLTF, GLB)              ║
-║ • Medição de distâncias entre pontos                        ║
-║ • Medição de áreas de polígonos                             ║
-║ • Interface intuitiva e responsiva                          ║
-║ • Arquitetura modular e escalável                           ║
-║ • Sistema de eventos desacoplado                            ║
-╚══════════════════════════════════════════════════════════════╝
-        `);
-    </script>
-
-    <!-- Metadados adicionais -->
-    <meta name="description" content="Visualizador 3D interativo com ferramentas de medição de distância e área">
-    <meta name="keywords" content="3D, Three.js, medição, visualização, PLY, GLTF">
-    <meta name="author" content="Sistema de Visualização 3D">
-    
-    <!-- Preload de recursos críticos -->
-    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" as="script">
-    
-    <!-- Fallback para navegadores sem suporte a ES modules -->
-    <script nomodule>
-        document.body.innerHTML = `
-            <div style="
-                position: fixed;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                text-align: center;
-                color: #ff4444;
-                background: rgba(0, 0, 0, 0.9);
-                padding: 40px;
-                border-radius: 12px;
-                border: 1px solid #ff4444;
-                max-width: 500px;
-                font-family: Arial, sans-serif;
-            ">
-                <h2>⚠️ Navegador Não Suportado</h2>
-                <p>Este aplicativo requer um navegador moderno com suporte a:</p>
-                <ul style="text-align: left; margin: 20px 0;">
-                    <li>ES6 Modules</li>
-                    <li>WebGL</li>
-                    <li>JavaScript ES2015+</li>
-                </ul>
-                <p>Por favor, atualize seu navegador ou use:</p>
-                <p><strong>Chrome 61+, Firefox 60+, Safari 11+, Edge 79+</strong></p>
-            </div>
-        `;
     </script>
 </body>
 </html>

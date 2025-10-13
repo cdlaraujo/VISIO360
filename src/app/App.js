@@ -8,23 +8,24 @@ import { UIManager } from '../ui/UIManager.js';
 import { ToolController } from '../ui/ToolController.js';
 import { InteractionController } from '../core/InteractionController.js';
 import { MeasurementManager } from '../modules/MeasurementManager.js';
+import { CollaborationManager } from '../modules/CollaborationManager.js';
 
 /**
  * @class App
- * @description Classe principal que inicializa todos os sistemas da aplicação, incluindo as ferramentas de medição.
+ * @description Main application class with collaboration support
  */
 export class App {
     constructor(container) {
         if (!container) {
-            throw new Error('Um elemento container deve ser fornecido para a aplicação.');
+            throw new Error('Container element required');
         }
         this.container = container;
         
-        // --- Sistemas Centrais ---
+        // Core systems
         this.logger = new Logger('INFO');
         this.eventBus = new EventBus(this.logger);
 
-        // --- Módulos da Aplicação ---
+        // Modules
         this.sceneManager = new SceneManager(this.logger, this.eventBus);
         this.renderer = null;
         this.modelLoader = new ModelLoader(this.logger, this.eventBus);
@@ -32,24 +33,25 @@ export class App {
         this.toolController = new ToolController(this.logger, this.eventBus);
         this.interactionController = null;
         this.measurementManager = null;
+        this.collaborationManager = null;  // NEW!
     }
 
-    start() {
-        this.logger.info('App: Iniciando a aplicação com sistema de medições...');
+    async start() {
+        this.logger.info('App: Starting application with collaboration...');
         
         try {
-            // 1. Inicializa o SceneManager e obtém a cena
+            // 1. Initialize scene
             const { scene } = this.sceneManager.initialize();
 
-            // 2. Inicializa o Renderer, passando a cena
+            // 2. Initialize renderer
             this.renderer = new Renderer(this.container, scene, this.logger, this.eventBus);
             const rendererComponents = this.renderer.initialize();
             
-            // 3. Inicializa os outros módulos
+            // 3. Initialize other modules
             this.modelLoader.initialize();
             this.uiManager.initialize();
 
-            // 4. Inicializa o controlador de interação
+            // 4. Initialize interaction controller
             this.interactionController = new InteractionController(
                 rendererComponents.camera,
                 rendererComponents.domElement,
@@ -57,144 +59,116 @@ export class App {
                 this.eventBus
             );
 
-            // 5. Inicializa o sistema de medições
+            // 5. Initialize measurement system
             this.measurementManager = new MeasurementManager(
                 scene,
                 this.logger,
                 this.eventBus
             );
 
-            // 6. Configura listeners adicionais para integração entre módulos
+            // 6. Initialize collaboration system (NEW!)
+            this.collaborationManager = new CollaborationManager(
+                scene,
+                this.logger,
+                this.eventBus,
+                {
+                    usePeerJSCloud: true,
+                    autoJoinRoom: true
+                }
+            );
+
+            // 7. Setup integrations
             this._setupCrossModuleIntegration();
             
-            // 7. Inicia o loop de animação
+            // 8. Start animation loop
             this._animate();
 
-            this.logger.info('App: Aplicação iniciada com sucesso.');
+            this.logger.info('App: Application started successfully');
             
         } catch (error) {
-            this.logger.error('App: Erro durante a inicialização da aplicação.', error);
-            this._handleInitializationError(error);
+            this.logger.error('App: Initialization error', error);
+            throw error;
         }
     }
 
-    /**
-     * Configura integrações especiais entre módulos que requerem lógica específica.
-     * @private
-     */
     _setupCrossModuleIntegration() {
-        // Integração entre InteractionController e MeasurementManager
-        this.eventBus.on('measurement:point:selected', (payload) => {
-            this.logger.debug('App: Ponto selecionado para medição processado.');
-        });
+        // Measurement to collaboration sync
+        this.eventBus.on('measurement:distance:completed', (payload) => {
+            if (this.collaborationManager && this.collaborationManager.isConnected()) {
+                const midPoint = payload.measurement.points[0].clone()
+                    .add(payload.measurement.points[1]).multiplyScalar(0.5);
 
-        // Integração entre MeasurementManager e outros módulos
-        this.eventBus.on('measurement:delete', (payload) => {
-            if (this.measurementManager) {
-                this.measurementManager.clearMeasurement(payload.id);
+                this.collaborationManager.createAnnotation({
+                    type: 'measurement',
+                    subtype: 'distance',
+                    distance: payload.measurement.distance,
+                    points: payload.measurement.points.map(p => ({ x: p.x, y: p.y, z: p.z })),
+                    position: { x: midPoint.x, y: midPoint.y, z: midPoint.z }
+                });
             }
         });
 
-        // Listener para limpeza geral de recursos
+        this.eventBus.on('measurement:area:completed', (payload) => {
+            if (this.collaborationManager && this.collaborationManager.isConnected()) {
+                const center = new THREE.Vector3();
+                payload.measurement.points.forEach(p => center.add(p));
+                center.divideScalar(payload.measurement.points.length);
+
+                this.collaborationManager.createAnnotation({
+                    type: 'area',
+                    area: payload.measurement.area,
+                    points: payload.measurement.points.map(p => ({ x: p.x, y: p.y, z: p.z })),
+                    position: { x: center.x, y: center.y, z: center.z }
+                });
+            }
+        });
+
+        this.eventBus.on('measurement:surfaceArea:completed', (payload) => {
+            if (this.collaborationManager && this.collaborationManager.isConnected()) {
+                const center = new THREE.Vector3();
+                payload.measurement.points.forEach(p => center.add(p));
+                center.divideScalar(payload.measurement.points.length);
+
+                this.collaborationManager.createAnnotation({
+                    type: 'surfaceArea',
+                    surfaceArea: payload.measurement.surfaceArea,
+                    points: payload.measurement.points.map(p => ({ x: p.x, y: p.y, z: p.z })),
+                    position: { x: center.x, y: center.y, z: center.z }
+                });
+            }
+        });
+
+        // Cleanup handler
         this.eventBus.on('app:cleanup', () => {
             this._cleanup();
         });
 
-        // Tratamento de erros globais da aplicação
-        this.eventBus.on('app:error', (payload) => {
-            this.logger.error('App: Erro global capturado.', payload.error);
-        });
-
-        this.logger.info('App: Integrações entre módulos configuradas.');
+        this.logger.info('App: Cross-module integration configured');
     }
 
-    /**
-     * Loop principal de animação da aplicação.
-     * @private
-     */
     _animate() {
         try {
             requestAnimationFrame(this._animate.bind(this));
             this.eventBus.emit('app:update');
         } catch (error) {
-            this.logger.error('App: Erro no loop de animação.', error);
-            this.eventBus.emit('app:error', { error });
+            this.logger.error('App: Animation loop error', error);
         }
     }
 
-    /**
-     * Trata erros de inicialização mostrando uma mensagem amigável ao usuário.
-     * @param {Error} error - O erro ocorrido durante a inicialização.
-     * @private
-     */
-    _handleInitializationError(error) {
-        const errorMessage = `
-            <div style="
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                text-align: center;
-                color: #ff4444;
-                background: rgba(0, 0, 0, 0.8);
-                padding: 30px;
-                border-radius: 12px;
-                border: 1px solid #ff4444;
-                font-family: Arial, sans-serif;
-            ">
-                <h2>Erro na Inicialização</h2>
-                <p>Não foi possível inicializar a aplicação.</p>
-                <p><strong>Detalhes:</strong> ${error.message}</p>
-                <p style="font-size: 0.9em; color: #aaa;">
-                    Verifique o console do navegador para mais informações.
-                </p>
-                <button onclick="location.reload()" style="
-                    background: #007bff;
-                    color: white;
-                    border: none;
-                    padding: 10px 20px;
-                    border-radius: 6px;
-                    cursor: pointer;
-                    margin-top: 15px;
-                ">
-                    Recarregar Página
-                </button>
-            </div>
-        `;
-        
-        this.container.innerHTML = errorMessage;
-    }
-
-    /**
-     * Limpa recursos da aplicação quando necessário.
-     * @private
-     */
     _cleanup() {
-        this.logger.info('App: Iniciando limpeza de recursos...');
+        this.logger.info('App: Cleaning up resources...');
         
-        // Limpa medições
         if (this.measurementManager) {
             this.measurementManager.clearAllMeasurements();
         }
 
-        // Remove listeners de eventos do DOM
-        if (this.interactionController && this.interactionController.domElement) {
-            const element = this.interactionController.domElement;
-            element.removeEventListener('click', this.interactionController._onClick);
-            element.removeEventListener('wheel', this.interactionController._onMouseWheel);
-            element.removeEventListener('mousemove', this.interactionController._onMouseMove);
+        if (this.collaborationManager) {
+            this.collaborationManager.disconnect();
         }
 
-        // Limpa geometrias e materiais do Three.js se necessário
-        // (Esta é uma implementação básica - em produção, seria mais robusta)
-        
-        this.logger.info('App: Limpeza de recursos concluída.');
+        this.logger.info('App: Cleanup complete');
     }
 
-    /**
-     * API pública para obter referências aos módulos principais (útil para debugging).
-     * @returns {object} Objeto contendo referências aos principais módulos.
-     */
     getModules() {
         return {
             logger: this.logger,
@@ -205,23 +179,8 @@ export class App {
             uiManager: this.uiManager,
             toolController: this.toolController,
             interactionController: this.interactionController,
-            measurementManager: this.measurementManager
+            measurementManager: this.measurementManager,
+            collaborationManager: this.collaborationManager  // NEW!
         };
-    }
-
-    /**
-     * API pública para pausar/retomar a aplicação.
-     * @param {boolean} paused - Se true, pausa a aplicação; se false, retoma.
-     */
-    setPaused(paused) {
-        if (paused) {
-            this.logger.info('App: Aplicação pausada.');
-            // Para o loop de animação não chamando requestAnimationFrame novamente
-            this._paused = true;
-        } else {
-            this.logger.info('App: Aplicação retomada.');
-            this._paused = false;
-            this._animate(); // Reinicia o loop de animação
-        }
     }
 }
