@@ -56,35 +56,36 @@
         .clear-btn:hover { background-color: #c82333 !important; }
         .instructions-panel { margin: 15px 0; padding: 12px; background-color: rgba(0, 123, 255, 0.1); border-left: 3px solid #007bff; border-radius: 6px; display: none; }
         .instructions-panel.show { display: block; }
-        .measurements-panel { margin-top: 20px; padding-top: 15px; border-top: 1px solid #555; display: none; }
-        .measurement-group h4 { margin: 0 0 8px 0; font-size: 1em; color: #ccc; font-weight: normal; }
-        .measurement-list { background-color: rgba(255, 255, 255, 0.05); border-radius: 6px; padding: 8px; min-height: 30px; max-height: 120px; overflow-y: auto; }
-        .measurement-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; margin-bottom: 4px; background-color: rgba(255, 255, 255, 0.1); border-radius: 4px; }
-        .measurement-value { font-family: 'Courier New', monospace; font-weight: bold; color: #00d4ff; font-size: 0.95em; }
-        .delete-btn { background: #dc3545; border: none; color: white; width: 20px; height: 20px; border-radius: 50%; cursor: pointer; font-size: 12px; line-height: 1; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; padding: 0; }
-        .delete-btn:hover { background: #c82333; transform: scale(1.1); }
 
-        /* Loading & Notifications */
+        /* Loading, Notifications & Progress */
         .loading-spinner { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50px; height: 50px; border: 4px solid rgba(255, 255, 255, 0.3); border-top: 4px solid #007bff; border-radius: 50%; animation: spin 1s linear infinite; z-index: 1001; }
         @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
         .notification { position: fixed; top: 20px; right: 20px; background: #4CAF50; color: white; padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; font-size: 14px; animation: slideIn 0.3s ease forwards; }
         @keyframes slideIn { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+        .progress-bar-container { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 300px; background: rgba(0, 0, 0, 0.7); padding: 20px; border-radius: 10px; text-align: center; z-index: 1002; }
+        .progress-bar { width: 100%; height: 10px; background-color: #555; border-radius: 5px; overflow: hidden; margin-top: 10px; }
+        .progress-bar-fill { width: 0%; height: 100%; background-color: #007bff; transition: width 0.2s ease-in-out; }
+        .progress-text { color: #fff; margin: 0; font-size: 0.9em; }
     </style>
 </head>
 <body>
     <div id="app"></div>
-
     <div id="loading" class="loading-spinner"></div>
+    <div id="progress-bar-container" class="progress-bar-container">
+        <p class="progress-text">Carregando modelo... <span id="progress-percentage">0%</span></p>
+        <div class="progress-bar">
+            <div id="progress-bar-fill" class="progress-bar-fill"></div>
+        </div>
+    </div>
 
     <div id="ui-container">
-        <h1>Visio360 Colaborativo</h1>
-
+        <h1>Visio3D Colaborativo</h1>
         <div id="room-section" class="section">
             <div class="section-title">Sala de Colaboração</div>
             <div id="room-connect-panel">
                 <input type="text" id="user-name-input" class="input-field" placeholder="Seu nome" value="Usuário">
                 <button id="create-room-btn" class="btn btn-success">🚀 Criar Nova Sala</button>
-                <button id="join-room-btn" class="btn btn-secondary">🔗 Entrar em Sala Existente</button>
+                <button id="join-room-btn" class="btn btn-secondary">🔗 Entrar em Sala</button>
                 <div id="join-room-input" style="display: none; margin-top: 10px;">
                     <input type="text" id="room-id-input" class="input-field" placeholder="Código da sala (e.g. ABC123)">
                     <button id="join-room-confirm-btn" class="btn btn-primary">Entrar Agora</button>
@@ -106,104 +107,67 @@
                 </div>
             </div>
         </div>
-
         <div id="model-loading-section" class="section">
             <div class="section-title">Modelo 3D</div>
             <div id="model-input-area">
-                <p class="hint">Para colaborar, o modelo 3D precisa estar em um link público (URL).</p>
-                <input type="text" id="model-url-input" class="input-field" placeholder="Cole a URL do modelo (.glb, .gltf, .ply)">
+                <p class="hint">Cole um link público (URL) do seu modelo 3D.</p>
+                <input type="text" id="model-url-input" class="input-field" placeholder="URL do modelo (.glb, .gltf, .ply)">
                 <button id="load-model-url-btn" class="btn btn-primary">Carregar Modelo via URL</button>
                 <div style="text-align:center; margin:10px 0; color: #888;">OU</div>
                 <label for="model-input" class="custom-file-upload">
-                    📁 Carregar do Computador (Apenas Visualização Local)
+                    📁 Carregar do Computador (Individual)
                 </label>
                 <input type="file" id="model-input" accept=".ply,.gltf,.glb" />
             </div>
             <div id="model-info-area" style="display:none;">
-                <p style="margin: 0;">Modelo Carregado: <b id="model-name-display"></b></p>
+                <p style="margin: 0;">Modelo: <b id="model-name-display"></b></p>
                 <button id="change-model-btn" class="btn btn-secondary">Trocar Modelo</button>
             </div>
         </div>
-
         <div class="tools-section">
             <button id="measure-tool-btn" class="tool-btn">📏 Distância</button>
             <button id="area-tool-btn" class="tool-btn">📐 Área Plana</button>
-            <button id="surface-area-tool-btn" class="tool-btn">🗻 Área Real</button>
+            <button id="surface-area-tool-btn" class="tool-btn">🗻 Área de Superfície</button>
             <button id="clear-all-btn" class="tool-btn clear-btn">🗑️ Limpar Medições</button>
         </div>
-
         <div id="instructions-panel" class="instructions-panel">
             <p id="tool-instructions" style="margin:0;"></p>
-        </div>
-
-        <div id="measurements-panel" class="measurements-panel">
-            <h3>Minhas Medições</h3>
-            <div id="distance-measurements" class="measurement-group">
-                <h4>Distâncias</h4>
-                <div id="distance-list" class="measurement-list"></div>
-            </div>
-            <div id="area-measurements" class="measurement-group">
-                <h4>Áreas Planas</h4>
-                <div id="area-list" class="measurement-list"></div>
-            </div>
-            <div id="surface-area-measurements" class="measurement-group">
-                <h4>Áreas Reais (Superfície)</h4>
-                <div id="surface-area-list" class="measurement-list"></div>
-            </div>
         </div>
     </div>
 
     <script type="module">
         import { App } from './src/app/App.js';
 
-        // Graceful error handling
         function handleGlobalError(error) {
             console.error('❌ Erro fatal na aplicação:', error);
-            const spinner = document.getElementById('loading');
-            if (spinner) spinner.style.display = 'none';
-
+            document.getElementById('loading')?.remove();
+            document.getElementById('progress-bar-container')?.remove();
             const appContainer = document.getElementById('app');
             if (appContainer) {
                 appContainer.innerHTML = `
                     <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #ff4444; background: rgba(0, 0, 0, 0.9); padding: 30px; border-radius: 12px; border: 1px solid #ff4444;">
                         <h2>🚨 Erro na Aplicação</h2>
-                        <p>Não foi possível carregar o visualizador 3D.</p>
                         <p><strong>Motivo:</strong> ${error.message || 'Erro desconhecido'}</p>
-                        <p style="font-size: 0.9em; color: #aaa; margin-top: 15px;">Verifique o console do navegador (F12) para mais detalhes.</p>
-                        <button onclick="location.reload()" style="background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; margin-top: 20px; font-size: 1em;">🔄 Tentar Novamente</button>
-                    </div>
-                `;
+                        <p style="font-size: 0.9em; color: #aaa; margin-top: 15px;">Verifique o console do navegador (F12) para detalhes.</p>
+                        <button onclick="location.reload()" style="background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; margin-top: 20px;">🔄 Tentar Novamente</button>
+                    </div>`;
             }
         }
 
-        // Initialize on DOM load
         document.addEventListener('DOMContentLoaded', async () => {
             try {
                 const appContainer = document.getElementById('app');
                 if (!appContainer) throw new Error('Container #app não encontrado no DOM');
-
-                // Check WebGL support
-                const canvas = document.createElement('canvas');
-                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-                if (!gl) throw new Error('Seu navegador não suporta WebGL, que é necessário para rodar esta aplicação.');
-
-                console.log('🚀 Inicializando Visualizador 3D Colaborativo...');
+                
                 const app = new App(appContainer);
                 await app.start();
 
-                // Expose app for debugging and UI interaction
                 window.app = app;
                 console.log('✅ Aplicação inicializada com sucesso!');
-                console.log('💡 Dica: Use window.app.getModules() no console para inspecionar os módulos internos.');
-
             } catch (error) {
                 handleGlobalError(error);
             }
         });
-
-        // Global error listeners
-        window.addEventListener('error', (event) => handleGlobalError(event.error));
-        window.addEventListener('unhandledrejection', (event) => handleGlobalError(new Error(event.reason || 'Promise Rejection')));
     </script>
 </body>
 </html>
