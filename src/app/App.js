@@ -1,4 +1,3 @@
-// src/app/App.js
 import { Logger } from '../utils/Logger.js';
 import { EventBus } from './EventBus.js';
 import { SceneManager } from '../core/SceneManager.js';
@@ -7,34 +6,42 @@ import { ModelLoader } from '../core/ModelLoader.js';
 import { UIManager } from '../ui/UIManager.js';
 import { ToolController } from '../ui/ToolController.js';
 import { InteractionController } from '../core/InteractionController.js';
-import { MeasurementManager } from '../modules/MeasurementManager.js';
-import { CollaborationManager } from '../modules/CollaborationManager.js';
+import { AnimationLoop } from '../core/AnimationLoop.js';
+import { Measurements } from '../modules/measurements.js';
+import { Collaboration } from '../modules/collaboration.js';
 
+/**
+ * @class App
+ * @description
+ * The main coordinator of the entire application. It follows a pure coordinator pattern.
+ * Its responsibilities are:
+ * 1. Instantiate all core systems and feature modules.
+ * 2. Define the high-level event-based communication between these modules.
+ * It contains no business logic itself, delegating all tasks to specialized worker modules.
+ */
 export class App {
     constructor(container) {
         this.container = container;
         this.logger = new Logger('INFO');
         this.eventBus = new EventBus(this.logger);
+
+        // --- Instantiate Core Systems ---
         this.sceneManager = new SceneManager(this.logger, this.eventBus);
         this.modelLoader = new ModelLoader(this.logger, this.eventBus);
         this.uiManager = new UIManager(this.logger, this.eventBus);
         this.toolController = new ToolController(this.logger, this.eventBus);
+        this.animationLoop = new AnimationLoop(this.eventBus);
     }
 
     async start() {
         this.logger.info('App: Starting...');
         try {
-            // WebGL Check
-            const canvas = document.createElement('canvas');
-            const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-            if (!gl) {
-                throw new Error('Seu navegador não suporta WebGL, que é necessário para rodar esta aplicação.');
-            }
-
+            // --- Renderer and Scene Initialization ---
             const { scene } = this.sceneManager.initialize();
             this.renderer = new Renderer(this.container, scene, this.logger, this.eventBus);
             const rendererComponents = this.renderer.initialize();
 
+            // --- Initialize Core Modules ---
             this.modelLoader.initialize();
             this.uiManager.initialize();
 
@@ -44,14 +51,16 @@ export class App {
                 this.logger,
                 this.eventBus
             );
-            this.measurementManager = new MeasurementManager(scene, this.logger, this.eventBus);
-            this.collaborationManager = new CollaborationManager(scene, this.logger, this.eventBus);
+            
+            // --- Initialize Feature Modules ---
+            // The two main features of the application are instantiated here.
+            this.collaboration = new Collaboration(scene, this.logger, this.eventBus);
+            this.measurements = new Measurements(scene, this.logger, this.eventBus, this.collaboration);
 
-            // Pass collaboration manager to measurement manager for annotation syncing
-            this.measurementManager.setCollaborationManager(this.collaborationManager);
-
+            // --- Wire up high-level integrations and start the app ---
             this._setupCrossModuleIntegration();
-            this._animate();
+            this.animationLoop.start();
+
             this.logger.info('App: Started successfully.');
         } catch (error) {
             this.logger.error('App: A critical error occurred during initialization.', error);
@@ -59,39 +68,32 @@ export class App {
         }
     }
 
+    /**
+     * Wires up high-level event communication between major, decoupled modules.
+     * This is the core of the coordinator's responsibility.
+     * @private
+     */
     _setupCrossModuleIntegration() {
-        // When a model is loaded, give its data to the CollaborationManager for P2P sharing
+        // When a model is loaded, give its data to the Collaboration module for P2P sharing.
         this.eventBus.on('model:loaded', (payload) => {
-            if (payload.modelBlob && this.collaborationManager) {
-                this.logger.info(`App: Storing model data (${(payload.modelBlob.size / 1024 / 1024).toFixed(2)} MB) for P2P sharing.`);
-                this.collaborationManager.setModelData(payload.modelBlob, payload.model.name);
+            if (payload.modelBlob && this.collaboration) {
+                this.logger.info(`App: Storing model data for P2P sharing.`);
+                this.collaboration.setModelData(payload.modelBlob, payload.model.name);
             }
         });
 
-        // When a measurement is completed, it is automatically broadcast by AnnotationSync,
-        // so no specific handler is needed here anymore for creation.
-
-        // ✅ FIX: This is the corrected event listener for deletion.
+        // Handle the deletion of a measurement.
+        // App.js decides whether the action is local or needs to be synced.
         this.eventBus.on('measurement:delete', (payload) => {
-            // If we are in a collaborative session, ALL delete operations MUST go through the sync manager.
-            if (this.collaborationManager?.isConnected()) {
-                this.collaborationManager.deleteAnnotation(payload.id);
+            if (this.collaboration?.isConnected()) {
+                // If in a session, the collaboration module handles the synced deletion.
+                this.collaboration.deleteAnnotation(payload.id);
             } else {
-                // Only if we are NOT connected, we perform a local-only delete.
-                this.measurementManager.clearMeasurement(payload.id);
+                // Otherwise, the measurements module performs a local-only delete.
+                this.measurements.clearMeasurement(payload.id);
             }
-        });
-
-        // Add a listener to update the UI when annotations change (from local or remote actions)
-        this.eventBus.on('annotation:changed', () => {
-            this.measurementManager._updateUI();
         });
 
         this.logger.info('App: Cross-module integrations configured.');
-    }
-
-    _animate() {
-        requestAnimationFrame(this._animate.bind(this));
-        this.eventBus.emit('app:update');
     }
 }

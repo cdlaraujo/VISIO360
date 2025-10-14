@@ -406,3 +406,56 @@ input[type="file"] {
     background: #dc3545;
     transform: scale(1.1);
 }
+
+/* General Styles */
+body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #f0f0f0; background-color: #1a1a1a; overflow: hidden; }
+#app { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+#ui-container { position: fixed; top: 20px; left: 20px; z-index: 10; background-color: rgba(40, 40, 40, 0.95); padding: 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5); backdrop-filter: blur(10px); width: 340px; max-height: calc(100vh - 40px); overflow-y: auto; }
+h1 { margin-top: 0; font-size: 1.5em; color: #ffffff; border-bottom: 1px solid #555; padding-bottom: 10px; margin-bottom: 15px; }
+.section { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #444; }
+.section-title { font-size: 1.1em; color: #00d4ff; margin-bottom: 15px; font-weight: bold; }
+.hint { font-size: 0.8em; color: #aaa; margin: 10px 0; text-align: left; line-height: 1.4; }
+.btn { padding: 10px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; transition: all 0.3s ease; font-size: 0.95em; width: 100%; margin-top: 5px; }
+.btn-primary { background-color: #007bff; color: white; }
+.btn-primary:hover { background-color: #0056b3; }
+.btn-secondary { background-color: #6c757d; color: white; }
+.btn-secondary:hover { background-color: #5a6268; }
+.btn-success { background-color: #28a745; color: white; }
+.btn-success:hover { background-color: #218838; }
+.input-field { width: calc(100% - 22px); padding: 10px; margin-bottom: 10px; border: 1px solid #555; border-radius: 6px; background: rgba(0, 0, 0, 0.3); color: white; font-size: 0.95em; }
+input[type="file"] { display: none; }
+.custom-file-upload { display: block; width: 100%; padding: 12px 0; border-radius: 8px; background-color: #555; color: white; text-align: center; font-weight: bold; cursor: pointer; transition: all 0.3s ease; }
+.custom-file-upload:hover { background-color: #666; }
+
+/* Collaboration UI */
+#room-connect-panel, #join-room-input { display: grid; gap: 10px; }
+.status-indicator { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 6px; }
+.status-dot { width: 12px; height: 12px; border-radius: 50%; background: #ff4444; }
+.status-dot.connected { background: #4CAF50; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+.room-code-display { margin: 15px 0; }
+.room-code { background: rgba(0, 0, 0, 0.5); padding: 12px; border-radius: 6px; font-family: monospace; font-size: 1.2em; text-align: center; margin: 8px 0; letter-spacing: 2px; user-select: all; }
+.peers-list { margin-top: 15px; padding-top: 15px; border-top: 1px solid #555; }
+#peers-container { margin-top: 10px; max-height: 100px; overflow-y: auto; }
+.peer-item { display: flex; align-items: center; gap: 8px; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 6px; margin-bottom: 6px; }
+.peer-color-dot { width: 12px; height: 12px; border-radius: 50%; }
+
+/* Tools & Measurements */
+.tools-section { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.tool-btn { padding: 12px 8px; border-radius: 8px; background-color: #555; color: white; text-align: center; font-weight: bold; cursor: pointer; border: none; transition: all 0.3s ease; font-size: 0.9em; }
+.tool-btn:hover { background-color: #666; transform: translateY(-1px); }
+.tool-btn.active { background-color: #007bff; box-shadow: 0 0 10px rgba(0, 123, 255, 0.4); }
+.clear-btn { background-color: #dc3545 !important; grid-column: 1 / -1; }
+.clear-btn:hover { background-color: #c82333 !important; }
+.instructions-panel { margin: 15px 0; padding: 12px; background-color: rgba(0, 123, 255, 0.1); border-left: 3px solid #007bff; border-radius: 6px; display: none; }
+.instructions-panel.show { display: block; }
+
+/* Loading, Notifications & Progress */
+.loading-spinner { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50px; height: 50px; border: 4px solid rgba(255, 255, 255, 0.3); border-top: 4px solid #007bff; border-radius: 50%; animation: spin 1s linear infinite; z-index: 1001; }
+@keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+.notification { position: fixed; top: 20px; right: 20px; background: #4CAF50; color: white; padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; font-size: 14px; animation: slideIn 0.3s ease forwards; }
+@keyframes slideIn { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+.progress-bar-container { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 300px; background: rgba(0, 0, 0, 0.7); padding: 20px; border-radius: 10px; text-align: center; z-index: 1002; }
+.progress-bar { width: 100%; height: 10px; background-color: #555; border-radius: 5px; overflow: hidden; margin-top: 10px; }
+.progress-bar-fill { width: 0%; height: 100%; background-color: #007bff; transition: width 0.2s ease-in-out; }
+.progress-text { color: #fff; margin: 0; font-size: 0.9em; }
