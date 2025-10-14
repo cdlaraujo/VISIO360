@@ -47,6 +47,9 @@ export class App {
             this.measurementManager = new MeasurementManager(scene, this.logger, this.eventBus);
             this.collaborationManager = new CollaborationManager(scene, this.logger, this.eventBus);
 
+            // Pass collaboration manager to measurement manager for annotation syncing
+            this.measurementManager.setCollaborationManager(this.collaborationManager);
+
             this._setupCrossModuleIntegration();
             this._animate();
             this.logger.info('App: Started successfully.');
@@ -65,16 +68,25 @@ export class App {
             }
         });
 
-        // When a measurement is completed, broadcast it to peers
-        this.eventBus.on('measurement:distance:completed', (payload) => {
+        // When a measurement is completed, it is automatically broadcast by AnnotationSync,
+        // so no specific handler is needed here anymore for creation.
+
+        // ✅ FIX: This is the corrected event listener for deletion.
+        this.eventBus.on('measurement:delete', (payload) => {
+            // If we are in a collaborative session, ALL delete operations MUST go through the sync manager.
             if (this.collaborationManager?.isConnected()) {
-                this.collaborationManager.createAnnotation({
-                    type: 'measurement',
-                    distance: payload.measurement.distance,
-                    points: payload.measurement.points.map(p => ({ x: p.x, y: p.y, z: p.z }))
-                });
+                this.collaborationManager.deleteAnnotation(payload.id);
+            } else {
+                // Only if we are NOT connected, we perform a local-only delete.
+                this.measurementManager.clearMeasurement(payload.id);
             }
         });
+
+        // Add a listener to update the UI when annotations change (from local or remote actions)
+        this.eventBus.on('annotation:changed', () => {
+            this.measurementManager._updateUI();
+        });
+
         this.logger.info('App: Cross-module integrations configured.');
     }
 

@@ -96,7 +96,10 @@ export class DistanceMeasurement {
         
         const text = `${distance.toFixed(2)}m`;
         const label = this._createTextSprite(text, '#ff0000');
-        label.position.copy(midPoint);
+        
+        // ✅ FIX: Position the label at the midpoint with a slight vertical offset to ensure it's visible.
+        label.position.copy(midPoint).add(new THREE.Vector3(0, 0.2, 0));
+        
         this.scene.add(label);
         this.activeMeasurement.visuals.labels.push(label);
     }
@@ -121,7 +124,8 @@ export class DistanceMeasurement {
             depthWrite: false 
         });
         const sprite = new THREE.Sprite(spriteMaterial);
-        sprite.scale.set(1, 0.25, 1);
+        
+        sprite.scale.set(1.2, 0.3, 1.0);
         sprite.renderOrder = 1000;
         return sprite;
     }

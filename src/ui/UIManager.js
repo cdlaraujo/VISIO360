@@ -28,7 +28,7 @@ export class UIManager {
             copyRoomBtn: document.getElementById('copy-room-btn'),
             peerCount: document.getElementById('peer-count'),
             peersContainer: document.getElementById('peers-container'),
-            
+
             // Model loading elements
             loadModelUrlBtn: document.getElementById('load-model-url-btn'),
             modelUrlInput: document.getElementById('model-url-input'),
@@ -37,17 +37,19 @@ export class UIManager {
             modelInfoArea: document.getElementById('model-info-area'),
             modelNameDisplay: document.getElementById('model-name-display'),
             changeModelBtn: document.getElementById('change-model-btn'),
-            
+
             // Measurement tool elements
             measureToolBtn: document.getElementById('measure-tool-btn'),
             areaToolBtn: document.getElementById('area-tool-btn'),
             surfaceAreaToolBtn: document.getElementById('surface-area-tool-btn'),
             clearAllBtn: document.getElementById('clear-all-btn'),
-            
+            measurementsPanel: document.getElementById('measurements-panel'),
+            measurementsContainer: document.getElementById('measurements-container'),
+
             // Instructions and feedback
             instructionsPanel: document.getElementById('instructions-panel'),
             toolInstructions: document.getElementById('tool-instructions'),
-            
+
             // Progress bar
             progressBarContainer: document.getElementById('progress-bar-container'),
             progressBarFill: document.getElementById('progress-bar-fill'),
@@ -55,10 +57,6 @@ export class UIManager {
         };
     }
 
-    /**
-     * ✅ FIX #2: Validate that required UI elements exist
-     * @throws {Error} If critical elements are missing
-     */
     _validateRequiredElements() {
         // Critical elements - app cannot function without these
         const criticalElements = [
@@ -110,10 +108,6 @@ export class UIManager {
         this.logger.info('UIManager: UI element validation completed successfully');
     }
 
-    /**
-     * Display a fatal error message to the user when critical elements are missing
-     * @param {Array<string>} missingElements - List of missing element IDs
-     */
     _showFatalError(missingElements) {
         const appContainer = document.getElementById('app');
         if (appContainer) {
@@ -133,7 +127,7 @@ export class UIManager {
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                 box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
             `;
-            
+
             errorDiv.innerHTML = `
                 <h2 style="margin: 0 0 15px 0; font-size: 24px;">⚠️ Initialization Error</h2>
                 <p style="margin: 0 0 15px 0; font-size: 16px; line-height: 1.5;">
@@ -149,15 +143,11 @@ export class UIManager {
                     Please check the browser console for more details.
                 </p>
             `;
-            
+
             document.body.appendChild(errorDiv);
         }
     }
 
-    /**
-     * Display a warning message for non-critical missing elements
-     * @param {string} message - Warning message to display
-     */
     _showWarning(message) {
         const warningDiv = document.createElement('div');
         warningDiv.style.cssText = `
@@ -175,13 +165,13 @@ export class UIManager {
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
             animation: slideIn 0.3s ease-out;
         `;
-        
+
         warningDiv.innerHTML = `
             <strong>⚠️ Warning:</strong><br>${message}
         `;
-        
+
         document.body.appendChild(warningDiv);
-        
+
         // Auto-remove after 5 seconds
         setTimeout(() => {
             warningDiv.style.animation = 'slideOut 0.3s ease-out';
@@ -201,8 +191,13 @@ export class UIManager {
         this._safeAddEventListener(this.ui.measureToolBtn, 'click', () => this.eventBus.emit('tool:activate', { tool: 'measure' }));
         this._safeAddEventListener(this.ui.areaToolBtn, 'click', () => this.eventBus.emit('tool:activate', { tool: 'area' }));
         this._safeAddEventListener(this.ui.surfaceAreaToolBtn, 'click', () => this.eventBus.emit('tool:activate', { tool: 'surfaceArea' }));
-        this._safeAddEventListener(this.ui.clearAllBtn, 'click', () => this.eventBus.emit('measurement:clear:all'));
-        
+        this._safeAddEventListener(this.ui.clearAllBtn, 'click', () => {
+            // Clear local measurements immediately for responsiveness
+            this.eventBus.emit('measurement:clear:all');
+            // Also send a collaboration event to clear for everyone
+            this.eventBus.emit('collaboration:clear-all-annotations');
+        });
+
         // Event bus listeners (always safe)
         this.eventBus.on('tool:changed', p => this._updateToolButtons(p.activeTool));
         this.eventBus.on('ui:instructions:update', p => this._updateInstructions(p.text));
@@ -216,14 +211,9 @@ export class UIManager {
         this.eventBus.on('ui:p2p-progress:start', p => this._showProgressBar(`Recebendo de ${p.from}...`));
         this.eventBus.on('ui:p2p-progress:update', p => this._updateProgressBar(p.progress));
         this.eventBus.on('ui:p2p-progress:end', () => { this._hideProgressBar(); this._showNotification('Modelo recebido!', 'success'); });
+        this.eventBus.on('ui:measurements:update', stats => this._updateMeasurementsUI(stats));
     }
 
-    /**
-     * ✅ FIX #2: Safely add event listener only if element exists
-     * @param {HTMLElement|null} element - The DOM element
-     * @param {string} event - Event type
-     * @param {Function} handler - Event handler
-     */
     _safeAddEventListener(element, event, handler) {
         if (element) {
             element.addEventListener(event, handler);
@@ -232,11 +222,6 @@ export class UIManager {
         }
     }
 
-    /**
-     * ✅ FIX #2: Safely update UI element only if it exists
-     * @param {HTMLElement|null} element - The DOM element
-     * @param {Function} updateFn - Function to update the element
-     */
     _safeUpdateElement(element, updateFn) {
         if (element) {
             try {
@@ -258,7 +243,7 @@ export class UIManager {
     _joinRoom() {
         let roomId = this.ui.roomIdInput?.value?.trim();
         if (!roomId || !window.app?.collaborationManager) return;
-        
+
         if (roomId.includes('#room=')) {
             const match = roomId.match(/#room=([^&]+)/);
             if (match) {
@@ -266,7 +251,7 @@ export class UIManager {
                 this.logger.info(`UIManager: Extracted peer ID from URL: ${roomId}`);
             }
         }
-        
+
         this._showProgressBar(`Entrando na sala...`);
         const userName = this.ui.userNameInput?.value?.trim() || 'Usuário';
         window.app.collaborationManager.userName = userName;
@@ -280,18 +265,18 @@ export class UIManager {
         this._safeUpdateElement(this.ui.connectionStatus, el => {
             el.textContent = data.isHost ? '🌟 Host da Sala' : '✅ Conectado';
         });
-        
+
         if (this.ui.roomCodeDisplay) {
-            const displayCode = data.roomId.length > 20 
+            const displayCode = data.roomId.length > 20
                 ? data.roomId.substring(0, 8) + '...' + data.roomId.substring(data.roomId.length - 8)
                 : data.roomId;
-            
+
             this.ui.roomCodeDisplay.textContent = displayCode;
             this.ui.roomCodeDisplay.title = data.roomId;
             this.ui.roomCodeDisplay.style.fontSize = '0.9em';
             this.ui.roomCodeDisplay.style.wordBreak = 'break-all';
         }
-        
+
         this._updatePeersList();
         this._showNotification('Conectado!', 'success');
     }
@@ -304,17 +289,17 @@ export class UIManager {
     _updatePeersList() {
         const cm = window.app?.collaborationManager;
         if (!cm || !this.ui.peersContainer) return;
-        
+
         this._safeUpdateElement(this.ui.peerCount, el => {
             el.textContent = cm.connections.size + 1;
         });
-        
+
         this.ui.peersContainer.innerHTML = '';
         const selfEl = document.createElement('div');
         selfEl.className = 'peer-item';
         selfEl.innerHTML = `<div class="peer-color-dot" style="background: ${cm.userColor};"></div> <span>Você (${cm.userName})</span>`;
         this.ui.peersContainer.appendChild(selfEl);
-        
+
         cm.peerInfo.forEach(info => {
             const peerEl = document.createElement('div');
             peerEl.className = 'peer-item';
@@ -326,7 +311,7 @@ export class UIManager {
     _copyRoomURL() {
         const url = window.app?.collaborationManager?.getRoomURL();
         if (url) {
-            navigator.clipboard.writeText(url).then(() => 
+            navigator.clipboard.writeText(url).then(() =>
                 this._showNotification('✅ Link copiado!', 'success')
             ).catch(() => {
                 prompt('Copie este link:', url);
@@ -384,7 +369,7 @@ export class UIManager {
 
     _showProgressBar(message = 'Carregando...') {
         if (!this.ui.progressBarContainer) return;
-        
+
         const textEl = this.ui.progressBarContainer.querySelector('.progress-text');
         if (textEl) {
             textEl.innerHTML = `${message} <span id="progress-percentage">0%</span>`;
@@ -412,5 +397,59 @@ export class UIManager {
         if (type === 'success') el.style.backgroundColor = '#28a745';
         document.body.appendChild(el);
         setTimeout(() => el.remove(), 3000);
+    }
+
+    _updateMeasurementsUI(stats) {
+        if (!this.ui.measurementsContainer) return;
+
+        this.ui.measurementsContainer.innerHTML = '';
+
+        let hasMeasurements = false;
+
+        const createGroup = (title, items, unit) => {
+            if (!items || items.length === 0) return;
+
+            hasMeasurements = true;
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'measurement-group';
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'measurement-group-title';
+            titleEl.textContent = title;
+            groupDiv.appendChild(titleEl);
+
+            items.forEach(item => {
+                const itemEl = document.createElement('div');
+                itemEl.className = 'measurement-item';
+                itemEl.innerHTML = `
+                    <span class="measurement-value">${item.value.toFixed(2)}${unit}</span>
+                    <button class="delete-btn" data-id="${item.id}" title="Remover">&times;</button>
+                `;
+                groupDiv.appendChild(itemEl);
+            });
+
+            this.ui.measurementsContainer.appendChild(groupDiv);
+        };
+
+        createGroup('📏 Distâncias', stats.distances, 'm');
+        createGroup('📐 Áreas Planas', stats.areas, 'm²');
+        createGroup('🗻 Áreas de Superfície', stats.surfaceAreas, 'm²');
+
+        // Show/hide the main panel
+        this._safeUpdateElement(this.ui.measurementsPanel, el => {
+            el.style.display = hasMeasurements ? 'block' : 'none';
+        });
+
+        // Add a single event listener for all delete buttons
+        if (hasMeasurements) {
+            this.ui.measurementsContainer.addEventListener('click', (event) => {
+                if (event.target.classList.contains('delete-btn')) {
+                    const id = event.target.dataset.id;
+                    if (id) {
+                        this.eventBus.emit('measurement:delete', { id });
+                    }
+                }
+            });
+        }
     }
 }

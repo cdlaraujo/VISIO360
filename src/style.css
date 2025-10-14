@@ -332,3 +332,77 @@ input[type="file"] {
         transform: rotate(360deg);
     }
 }
+
+/* Painel de medições */
+.measurements-panel {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #444;
+}
+
+#measurements-container:empty::before {
+    content: "Nenhuma medição realizada.";
+    display: block;
+    text-align: center;
+    color: #888;
+    font-style: italic;
+    font-size: 0.9em;
+    padding: 10px 0;
+}
+
+.measurement-group {
+    margin-bottom: 15px;
+}
+
+.measurement-group-title {
+    font-size: 1em;
+    color: #ccc;
+    margin: 0 0 8px 0;
+    font-weight: bold;
+    border-bottom: 1px solid #555;
+    padding-bottom: 5px;
+}
+
+.measurement-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    margin-bottom: 5px;
+    background-color: rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+}
+
+.measurement-item:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.measurement-value {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    color: #00d4ff;
+    font-size: 0.95em;
+}
+
+.delete-btn {
+    background: #c82333;
+    border: none;
+    color: white;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+.delete-btn:hover {
+    background: #dc3545;
+    transform: scale(1.1);
+}

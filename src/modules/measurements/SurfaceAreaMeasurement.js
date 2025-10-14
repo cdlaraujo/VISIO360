@@ -163,13 +163,22 @@ export class SurfaceAreaMeasurement {
     }
 
     _addAreaLabel() {
+        const points = this.activeMeasurement.points;
         const center = new THREE.Vector3();
-        this.activeMeasurement.points.forEach(p => center.add(p));
-        center.divideScalar(this.activeMeasurement.points.length);
+        points.forEach(p => center.add(p));
+        center.divideScalar(points.length);
+
+        // ✅ FIX: Calculate the normal to position the label "above" the polygon plane.
+        const normal = new THREE.Vector3().crossVectors(
+            new THREE.Vector3().subVectors(points[1], points[0]),
+            new THREE.Vector3().subVectors(points[2], points[0])
+        ).normalize();
 
         const text = `${this.activeMeasurement.surfaceArea.toFixed(2)}m²`;
         const label = this._createTextSprite(text, '#00aaff');
-        label.position.copy(center).y += 0.2;
+        
+        label.position.copy(center).add(normal.multiplyScalar(0.2));
+        
         this.scene.add(label);
         this.activeMeasurement.visuals.labels.push(label);
     }
@@ -194,7 +203,8 @@ export class SurfaceAreaMeasurement {
             depthWrite: false 
         });
         const sprite = new THREE.Sprite(spriteMaterial);
-        sprite.scale.set(1, 0.25, 1);
+        
+        sprite.scale.set(1.2, 0.3, 1.0);
         sprite.renderOrder = 1000;
         return sprite;
     }

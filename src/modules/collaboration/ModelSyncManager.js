@@ -1,6 +1,4 @@
-// ============================================================================
-// FILE: src/modules/collaboration/ModelSyncManager.js
-// ============================================================================
+// src/modules/collaboration/ModelSyncManager.js
 
 /**
  * @class ModelSyncManager
@@ -30,7 +28,7 @@ export class ModelSyncManager {
     }
 
     /**
-     * Store model data for sharing with peers
+     * Store model data for sharing with peers and broadcast if host.
      * @param {Blob} blob - The model file as a Blob
      * @param {string} fileName - The name of the model file
      */
@@ -43,6 +41,12 @@ export class ModelSyncManager {
         this.currentModelBlob = blob;
         this.currentModelFileName = fileName;
         this.logger.info(`ModelSyncManager: Model data stored - "${fileName}" (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
+
+        // ✅ FIX: If we are the host and have connections, broadcast the new model.
+        if (this._isHost() && this.connectionManager.hasConnections()) {
+            this.logger.info('ModelSyncManager: Host has set a new model, broadcasting to all peers.');
+            this.broadcastModel();
+        }
     }
 
     /**

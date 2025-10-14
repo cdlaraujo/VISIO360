@@ -39,73 +39,53 @@ export class CollaborationManager {
     // PUBLIC API - Simple delegation to sub-modules
     // ========================================================================
 
-    /**
-     * Store model data for P2P sharing
-     * @delegates ModelSyncManager
-     */
     setModelData(blob, fileName) {
         this.modelSync.setModelData(blob, fileName);
     }
 
-    /**
-     * Create and broadcast annotation
-     * @delegates AnnotationSync
-     */
     createAnnotation(annotationData) {
         // AnnotationSync already listens to measurement events, but expose for direct calls
         if (this.isConnected()) {
             this.annotationSync._broadcastMeasurement(
-                annotationData.type, 
+                annotationData.type,
                 annotationData
             );
         }
     }
+    
+    deleteAnnotation(annotationId) {
+        this.annotationSync.deleteAnnotation(annotationId);
+    }
 
-    /**
-     * Check if connected to any peers
-     * @delegates ConnectionManager
-     */
+    getAnnotations() {
+        return this.annotationSync.getAnnotations();
+    }
+
     isConnected() {
         return this.connectionManager.hasConnections();
     }
 
-    /**
-     * Connect to or create a room
-     * @delegates RoomManager
-     */
     async connect(roomId = null) {
         if (roomId) {
             await this.roomManager.joinRoom(roomId);
         } else {
             await this.roomManager.createRoom();
         }
-        
+
         // Update ModelSync with host status
         this.modelSync.setHostStatus(this.roomManager.isHost);
-        
+
         return this.roomManager.roomId;
     }
 
-    /**
-     * Disconnect from room
-     * @delegates RoomManager
-     */
     disconnect() {
         this.roomManager.leaveRoom();
     }
 
-    /**
-     * Get room URL for sharing
-     * @delegates RoomManager
-     */
     getRoomURL() {
         return this.roomManager.getRoomURL();
     }
 
-    /**
-     * Get room information
-     * @delegates RoomManager
-     */
     getRoomInfo() {
         return this.roomManager.getRoomInfo();
     }
@@ -207,16 +187,23 @@ export class CollaborationManager {
         });
 
         this.eventBus.on('peer:profile-received', (payload) => {
-            this.eventBus.emit('collaboration:peer-info', { 
-                peerId: payload.peerId, 
-                info: payload.profile 
+            this.eventBus.emit('collaboration:peer-info', {
+                peerId: payload.peerId,
+                info: payload.profile
             });
         });
 
         this.eventBus.on('connection:error', (payload) => {
-            this.eventBus.emit('collaboration:connection-error', { 
-                error: payload.error.message || 'Connection failed' 
+            this.eventBus.emit('collaboration:connection-error', {
+                error: payload.error.message || 'Connection failed'
             });
+        });
+
+        // Listen for requests to clear all annotations from the UI
+        this.eventBus.on('collaboration:clear-all-annotations', () => {
+            if (this.isHost) { // Or any other logic to prevent spamming
+                this.annotationSync.clearAllAnnotations();
+            }
         });
     }
 }

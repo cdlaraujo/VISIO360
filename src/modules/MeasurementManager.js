@@ -20,6 +20,7 @@ export class MeasurementManager {
         this.scene = scene;
         this.logger = logger;
         this.eventBus = eventBus;
+        this.collaborationManager = null;
 
         // Current tool state
         this.currentTool = 'none';
@@ -35,36 +36,40 @@ export class MeasurementManager {
 
         // Initialize specialized measurement modules
         this.distanceMeasurement = new DistanceMeasurement(
-            this.measurementGroup, 
-            materials, 
-            logger, 
+            this.measurementGroup,
+            materials,
+            logger,
             eventBus
         );
 
         this.areaMeasurement = new AreaMeasurement(
-            this.measurementGroup, 
-            materials, 
-            logger, 
+            this.measurementGroup,
+            materials,
+            logger,
             eventBus
         );
 
         this.surfaceAreaMeasurement = new SurfaceAreaMeasurement(
-            this.measurementGroup, 
-            materials, 
-            logger, 
+            this.measurementGroup,
+            materials,
+            logger,
             eventBus
         );
 
         // Initialize disposer for memory management
         this.disposer = new MeasurementDisposer(
-            this.measurementGroup, 
-            materials, 
+            this.measurementGroup,
+            materials,
             logger
         );
 
         this._setupEventListeners();
 
         this.logger.info('MeasurementManager: Initialized (refactored coordinator)');
+    }
+
+    setCollaborationManager(collaborationManager) {
+        this.collaborationManager = collaborationManager;
     }
 
     _setupEventListeners() {
@@ -119,29 +124,46 @@ export class MeasurementManager {
         const instructions = {
             'none': 'Selecione uma ferramenta para começar.',
             'measure': 'Clique em dois pontos para medir a distância.',
-            'area': 'Clique para criar um polígono. Dê um duplo-clique para calcular a área plana (projeção).',
-            'surfaceArea': 'Clique para criar um polígono. Dê um duplo-clique para calcular a área real da superfície do modelo dentro do polígono.'
+            'area': 'Clique para criar um polígono. Dê um duplo-clique ou pressione ESC para calcular a área plana (projeção).',
+            'surfaceArea': 'Clique para criar um polígono. Dê um duplo-clique ou pressione ESC para calcular a área real da superfície do modelo dentro do polígono.'
         };
 
-        this.eventBus.emit('ui:instructions:update', { 
-            text: instructions[this.currentTool] || '' 
+        this.eventBus.emit('ui:instructions:update', {
+            text: instructions[this.currentTool] || ''
         });
     }
 
     _updateUI() {
+        const allAnnotations = this.collaborationManager?.getAnnotations() || [];
+
         const stats = {
-            distances: this.distanceMeasurement.getFinishedMeasurements(),
-            areas: this.areaMeasurement.getFinishedMeasurements(),
-            surfaceAreas: this.surfaceAreaMeasurement.getFinishedMeasurements()
+            distances: [],
+            areas: [],
+            surfaceAreas: []
         };
+        
+        // Add remote/synced annotations
+        allAnnotations.forEach(ann => {
+            if (ann.type === 'distance') {
+                stats.distances.push({ id: ann.id, value: ann.distance });
+            } else if (ann.type === 'area') {
+                stats.areas.push({ id: ann.id, value: ann.area });
+            } else if (ann.type === 'surfaceArea') {
+                stats.surfaceAreas.push({ id: ann.id, value: ann.surfaceArea });
+            }
+        });
+        
+        // If not in a session, add local measurements
+        if (!this.collaborationManager || !this.collaborationManager.isConnected()) {
+            stats.distances.push(...this.distanceMeasurement.getFinishedMeasurements());
+            stats.areas.push(...this.areaMeasurement.getFinishedMeasurements());
+            stats.surfaceAreas.push(...this.surfaceAreaMeasurement.getFinishedMeasurements());
+        }
 
         this.eventBus.emit('ui:measurements:update', stats);
     }
 
-    /**
-     * Clear all measurements
-     * @public
-     */
+
     clearAllMeasurements() {
         this.logger.info('MeasurementManager: Clearing all measurements');
 
@@ -164,11 +186,6 @@ export class MeasurementManager {
         this.logger.info('MeasurementManager: All measurements cleared');
     }
 
-    /**
-     * Clear a specific measurement by ID
-     * @param {string} id - Measurement ID
-     * @public
-     */
     clearMeasurement(id) {
         // Try to find and delete from each module
         const modules = [
@@ -198,11 +215,6 @@ export class MeasurementManager {
         this.logger.warn(`MeasurementManager: Measurement ${id} not found`);
     }
 
-    /**
-     * Get all measurements (useful for export/serialization)
-     * @returns {Object} All measurements organized by type
-     * @public
-     */
     getAllMeasurements() {
         return {
             distance: this.distanceMeasurement.measurements,
@@ -211,33 +223,24 @@ export class MeasurementManager {
         };
     }
 
-    /**
-     * Get measurement statistics
-     * @returns {Object} Measurement counts and totals
-     * @public
-     */
     getStatistics() {
         const allMeasurements = this.getAllMeasurements();
-        
+
         return {
-            totalCount: 
-                allMeasurements.distance.length + 
-                allMeasurements.area.length + 
+            totalCount:
+                allMeasurements.distance.length +
+                allMeasurements.area.length +
                 allMeasurements.surfaceArea.length,
             distanceCount: allMeasurements.distance.length,
             areaCount: allMeasurements.area.length,
             surfaceAreaCount: allMeasurements.surfaceArea.length,
-            finishedCount: 
+            finishedCount:
                 allMeasurements.distance.filter(m => m.finished).length +
                 allMeasurements.area.filter(m => m.finished).length +
                 allMeasurements.surfaceArea.filter(m => m.finished).length
         };
     }
 
-    /**
-     * Complete cleanup when manager is destroyed
-     * @public
-     */
     destroy() {
         this.logger.info('MeasurementManager: Destroying and cleaning up...');
 
