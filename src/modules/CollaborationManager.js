@@ -1,5 +1,5 @@
 // ============================================================================
-// FILE 7: src/modules/CollaborationManager.js (REFACTORED ORCHESTRATOR)
+// FILE: src/modules/CollaborationManager.js (PURE COORDINATOR)
 // ============================================================================
 
 import { ConnectionManager } from './collaboration/ConnectionManager.js';
@@ -8,11 +8,12 @@ import { FileTransferSender } from './collaboration/FileTransferSender.js';
 import { FileTransferReceiver } from './collaboration/FileTransferReceiver.js';
 import { PeerProfileManager } from './collaboration/PeerProfileManager.js';
 import { AnnotationSync } from './collaboration/AnnotationSync.js';
+import { ModelSyncManager } from './collaboration/ModelSyncManager.js';
 
 /**
  * @class CollaborationManager
- * @description Orchestrates all collaboration features by coordinating focused sub-modules.
- * This is now a COORDINATOR, not a god object - it delegates to specialized modules.
+ * @description Pure orchestrator that coordinates collaboration sub-modules.
+ * Contains NO business logic - only delegates to specialized modules.
  */
 export class CollaborationManager {
     constructor(scene, logger, eventBus) {
@@ -27,32 +28,122 @@ export class CollaborationManager {
         this.fileReceiver = new FileTransferReceiver(this.connectionManager, logger, eventBus);
         this.profileManager = new PeerProfileManager(this.connectionManager, logger, eventBus);
         this.annotationSync = new AnnotationSync(scene, this.connectionManager, logger, eventBus);
-
-        // Store model data for sharing with new peers
-        this.currentModelBlob = null;
-        this.currentModelFileName = null;
+        this.modelSync = new ModelSyncManager(this.connectionManager, this.fileSender, logger, eventBus);
 
         this._setupIntegration();
 
-        this.logger.info('CollaborationManager: Initialized (refactored architecture)');
+        this.logger.info('CollaborationManager: Initialized (pure coordinator)');
     }
 
+    // ========================================================================
+    // PUBLIC API - Simple delegation to sub-modules
+    // ========================================================================
+
+    /**
+     * Store model data for P2P sharing
+     * @delegates ModelSyncManager
+     */
+    setModelData(blob, fileName) {
+        this.modelSync.setModelData(blob, fileName);
+    }
+
+    /**
+     * Create and broadcast annotation
+     * @delegates AnnotationSync
+     */
+    createAnnotation(annotationData) {
+        // AnnotationSync already listens to measurement events, but expose for direct calls
+        if (this.isConnected()) {
+            this.annotationSync._broadcastMeasurement(
+                annotationData.type, 
+                annotationData
+            );
+        }
+    }
+
+    /**
+     * Check if connected to any peers
+     * @delegates ConnectionManager
+     */
+    isConnected() {
+        return this.connectionManager.hasConnections();
+    }
+
+    /**
+     * Connect to or create a room
+     * @delegates RoomManager
+     */
+    async connect(roomId = null) {
+        if (roomId) {
+            await this.roomManager.joinRoom(roomId);
+        } else {
+            await this.roomManager.createRoom();
+        }
+        
+        // Update ModelSync with host status
+        this.modelSync.setHostStatus(this.roomManager.isHost);
+        
+        return this.roomManager.roomId;
+    }
+
+    /**
+     * Disconnect from room
+     * @delegates RoomManager
+     */
+    disconnect() {
+        this.roomManager.leaveRoom();
+    }
+
+    /**
+     * Get room URL for sharing
+     * @delegates RoomManager
+     */
+    getRoomURL() {
+        return this.roomManager.getRoomURL();
+    }
+
+    /**
+     * Get room information
+     * @delegates RoomManager
+     */
+    getRoomInfo() {
+        return this.roomManager.getRoomInfo();
+    }
+
+    // ========================================================================
+    // Properties for backward compatibility with existing code
+    // ========================================================================
+
+    get isHost() {
+        return this.roomManager.isHost;
+    }
+
+    get connections() {
+        return this.connectionManager.connections;
+    }
+
+    get peerInfo() {
+        return this.profileManager.getAllPeerProfiles();
+    }
+
+    get userName() {
+        return this.profileManager.getMyProfile().name;
+    }
+
+    set userName(name) {
+        this.profileManager.setMyProfile(name, null);
+    }
+
+    get userColor() {
+        return this.profileManager.getMyProfile().color;
+    }
+
+    // ========================================================================
+    // Integration - Wire up events between modules
+    // ========================================================================
+
     _setupIntegration() {
-        // When a new peer connects, send them the current model if we have one
-        this.eventBus.on('connection:opened', (payload) => {
-            if (this.currentModelBlob && this.roomManager.isHost) {
-                this.logger.info(`CollaborationManager: Sending model to newly connected peer ${payload.peerId}`);
-                setTimeout(() => {
-                    this.fileSender.sendFile(
-                        payload.peerId, 
-                        this.currentModelBlob, 
-                        this.currentModelFileName
-                    ).catch(error => {
-                        this.logger.error(`Failed to send model to ${payload.peerId}`, error);
-                    });
-                }, 100);
-            }
-        });
+        // ModelSync now handles sending models to new peers automatically
 
         // When we receive a complete file, load it
         this.eventBus.on('file-transfer:receive:complete', (payload) => {
@@ -63,17 +154,13 @@ export class CollaborationManager {
             });
         });
 
-        // Forward UI events for file transfer progress
+        // Forward file transfer progress to UI
         this.eventBus.on('file-transfer:send:start', (payload) => {
-            this.eventBus.emit('ui:p2p-progress:start', { 
-                from: 'Sending...' 
-            });
+            this.eventBus.emit('ui:p2p-progress:start', { from: 'Sending...' });
         });
 
         this.eventBus.on('file-transfer:send:progress', (payload) => {
-            this.eventBus.emit('ui:p2p-progress:update', { 
-                progress: payload.progress 
-            });
+            this.eventBus.emit('ui:p2p-progress:update', { progress: payload.progress });
         });
 
         this.eventBus.on('file-transfer:send:complete', () => {
@@ -83,15 +170,11 @@ export class CollaborationManager {
         this.eventBus.on('file-transfer:receive:start', (payload) => {
             const peerProfile = this.profileManager.getPeerProfile(payload.peerId);
             const senderName = peerProfile ? peerProfile.name : 'Peer';
-            this.eventBus.emit('ui:p2p-progress:start', { 
-                from: senderName 
-            });
+            this.eventBus.emit('ui:p2p-progress:start', { from: senderName });
         });
 
         this.eventBus.on('file-transfer:receive:progress', (payload) => {
-            this.eventBus.emit('ui:p2p-progress:update', { 
-                progress: payload.progress 
-            });
+            this.eventBus.emit('ui:p2p-progress:update', { progress: payload.progress });
         });
 
         this.eventBus.on('file-transfer:receive:complete', () => {
