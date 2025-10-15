@@ -1,4 +1,4 @@
-// src/modules/measurements.js (New Coordinator File)
+// src/modules/measurements.js (FIXED for Duplication)
 
 import * as THREE from 'three';
 import { MeasurementMaterials } from './measurements/utils/MeasurementMaterials.js';
@@ -82,24 +82,27 @@ export class Measurements {
             surfaceAreas: []
         };
 
-        // If not in a collaborative session, get data from local modules.
-        if (!this.collaboration || !this.collaboration.isConnected()) {
+        const isConnected = this.collaboration?.isConnected() || false;
+
+        // FIX: Ensure mutual exclusivity of data sources based on connection status.
+        if (!isConnected) {
+            // If NOT connected, the local measurement modules are the single source of truth.
             stats.distances.push(...this.distanceMeasurement.getFinishedMeasurements());
             stats.areas.push(...this.areaMeasurement.getFinishedMeasurements());
             stats.surfaceAreas.push(...this.surfaceAreaMeasurement.getFinishedMeasurements());
+        } else {
+            // If CONNECTED, the collaboration module's annotations are the unified source of truth.
+            const allAnnotations = this.collaboration?.getAnnotations() || [];
+            allAnnotations.forEach(ann => {
+                if (ann.type === 'distance') {
+                    stats.distances.push({ id: ann.id, value: ann.distance });
+                } else if (ann.type === 'area') {
+                    stats.areas.push({ id: ann.id, value: ann.area });
+                } else if (ann.type === 'surfaceArea') {
+                    stats.surfaceAreas.push({ id: ann.id, value: ann.surfaceArea });
+                }
+            });
         }
-
-        // Always include synced annotations from the collaboration module.
-        const allAnnotations = this.collaboration?.getAnnotations() || [];
-        allAnnotations.forEach(ann => {
-            if (ann.type === 'distance') {
-                stats.distances.push({ id: ann.id, value: ann.distance });
-            } else if (ann.type === 'area') {
-                stats.areas.push({ id: ann.id, value: ann.area });
-            } else if (ann.type === 'surfaceArea') {
-                stats.surfaceAreas.push({ id: ann.id, value: ann.surfaceArea });
-            }
-        });
 
         return stats;
     }

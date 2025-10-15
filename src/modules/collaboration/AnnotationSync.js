@@ -1,5 +1,5 @@
 // ============================================================================
-// FILE 6: src/modules/collaboration/AnnotationSync.js
+// FILE 6: src/modules/collaboration/AnnotationSync.js (FIXED for TypeError)
 // ============================================================================
 
 import * as THREE from 'three';
@@ -61,13 +61,13 @@ export class AnnotationSync {
         };
 
         if (type === 'distance') {
-            annotation.distance = measurement.distance;
+            annotation.distance = measurement.value; // FIX: Use 'value' property
             annotation.points = measurement.points.map(p => ({ x: p.x, y: p.y, z: p.z }));
         } else if (type === 'area') {
-            annotation.area = measurement.area;
+            annotation.area = measurement.value; // FIX: Use 'value' property
             annotation.points = measurement.points.map(p => ({ x: p.x, y: p.y, z: p.z }));
         } else if (type === 'surfaceArea') {
-            annotation.surfaceArea = measurement.surfaceArea;
+            annotation.surfaceArea = measurement.value; // FIX: Use 'value' property
             annotation.points = measurement.points.map(p => ({ x: p.x, y: p.y, z: p.z }));
         }
 

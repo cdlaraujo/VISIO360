@@ -24,9 +24,56 @@ export class AreaMeasurement extends BasePolygonMeasurement {
     }
 
     _addFillMesh(points) {
-        const shape = new THREE.Shape(points.map(p => new THREE.Vector2(p.x, p.y))); // Simple 2D projection for fill
+        // 1. Calculate the Centroid and Normal of the 3D polygon to define its plane.
+        const centroid = new THREE.Vector3();
+        points.forEach(p => centroid.add(p));
+        centroid.divideScalar(points.length);
+
+        const p1 = points[0];
+        const p2 = points[1];
+        const p3 = points[2];
+        
+        // Calculate the plane normal using the cross product of two edges.
+        const edge1 = new THREE.Vector3().subVectors(p2, p1);
+        const edge2 = new THREE.Vector3().subVectors(p3, p1);
+        const normal = new THREE.Vector3().crossVectors(edge1, edge2).normalize();
+
+        // 2. Create the Shape and Geometry in 2D (projected space).
+        // To use ShapeGeometry, we must project the 3D points onto a 2D plane (the mesh's local XY plane).
+        const xAxis = new THREE.Vector3().subVectors(p2, p1).normalize(); // Local X-axis
+        const yAxis = new THREE.Vector3().crossVectors(normal, xAxis).normalize(); // Local Y-axis
+        
+        const shape = new THREE.Shape(
+            points.map(p => {
+                const vector = new THREE.Vector3().subVectors(p, centroid);
+                // Project the vector onto the local XY plane defined by xAxis and yAxis
+                return new THREE.Vector2(
+                    vector.dot(xAxis),
+                    vector.dot(yAxis)
+                );
+            })
+        );
+
         const geometry = new THREE.ShapeGeometry(shape);
         const mesh = new THREE.Mesh(geometry, this.materials.areaFill);
+        
+        // 3. Apply the 3D transformation to the mesh.
+        
+        // Set the mesh position to the calculated centroid
+        mesh.position.copy(centroid);
+        
+        // FIX: Use Matrix4.makeBasis and Quaternion.setFromRotationMatrix for reliable orientation.
+        const orientationMatrix = new THREE.Matrix4();
+        // The basis vectors define the mesh's new local coordinate system:
+        // xAxis (local X), yAxis (local Y), normal (local Z)
+        orientationMatrix.makeBasis(xAxis, yAxis, normal);
+
+        const orientationQuaternion = new THREE.Quaternion().setFromRotationMatrix(orientationMatrix);
+        mesh.quaternion.copy(orientationQuaternion);
+
+        // This ensures the mesh is rendered relative to other objects
+        mesh.renderOrder = 997; 
+
         this.scene.add(mesh);
         this.activeMeasurement.visuals.fill = mesh;
     }

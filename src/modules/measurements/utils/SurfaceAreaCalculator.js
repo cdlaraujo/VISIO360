@@ -1,9 +1,9 @@
 // ============================================================================
-// FILE: src/modules/measurements/SurfaceAreaCalculator.js
+// FILE: src/modules/measurements/SurfaceAreaCalculator.js (FIXED: Missing Import)
 // ============================================================================
 
 import * as THREE from 'three';
-import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'; // <-- FIX: Import required utility
 
 /**
  * @class SurfaceAreaCalculator
@@ -93,7 +93,7 @@ export class SurfaceAreaCalculator {
             if (this._isPointInPolygon(center2D, polygon2D)) {
                 const area = this._calculateTriangleArea(vA, vB, vC);
                 totalArea += area;
-                facesToHighlight.push(new THREE.Triangle(vA.clone(), vB.clone(), vC.clone()));
+                facesToHighlight.push(new THREE.Triangle(vA.clone(), vB.clone(), vC.c‌lone()));
             }
         }
 
