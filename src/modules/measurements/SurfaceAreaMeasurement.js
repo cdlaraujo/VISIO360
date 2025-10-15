@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BasePolygonMeasurement } from './common/BasePolygonMeasurement.js';
-import { SurfaceAreaCalculator } from './utils/SurfaceAreaCalculator.js'; // New Import
+import { SurfaceAreaCalculator } from './utils/SurfaceAreaCalculator.js';
 
 export class SurfaceAreaMeasurement extends BasePolygonMeasurement {
     constructor(scene, materials, logger, eventBus) {
@@ -9,20 +9,42 @@ export class SurfaceAreaMeasurement extends BasePolygonMeasurement {
         this.calculator = new SurfaceAreaCalculator(logger); // Instantiate calculator
     }
 
+    /**
+     * @private
+     * @description Robustly searches the scene for the main 3D model object.
+     */
+    _findActiveModel(scene) {
+        // Exclude Three.js helpers, cameras, and measurement groups
+        const EXCLUDE_NAMES = ['measurements', 'remote-annotations', 'GridHelper', 'remote-annotations'];
+        const EXCLUDE_TYPES = ['AmbientLight', 'DirectionalLight', 'PerspectiveCamera'];
+
+        let activeModel = null;
+
+        // Traverse the scene looking for the main model (a Mesh or a Group)
+        scene.traverse((child) => {
+            if (activeModel) return; // Stop search once found
+
+            if (EXCLUDE_TYPES.includes(child.type) || EXCLUDE_NAMES.includes(child.name)) {
+                return;
+            }
+
+            // Check if it's the root model container
+            if (child.isObject3D && child.parent === scene) {
+                // If it's a Mesh, Group, or Object3D directly under the scene, it's our model.
+                activeModel = child;
+            }
+        });
+
+        // The calculator expects an object that has a geometry or children with geometry
+        return activeModel;
+    }
+
     _finishMeasurement() {
         super._finishMeasurement(); // Handles cleanup and adding the closing line
         if (!this.activeMeasurement) return; // Finish was cancelled
 
-        // Find the active 3D model dynamically
-        const activeModel = this.scene.children.find(child => 
-            // Exclude measurement groups, lights, and helpers added by SceneManager
-            child.name !== 'measurements' && 
-            child.name !== 'remote-annotations' &&
-            child.type !== 'AmbientLight' && 
-            child.type !== 'DirectionalLight' &&
-            child.type !== 'GridHelper' &&
-            !child.isCamera
-        );
+        // Find the active 3D model using the robust search
+        const activeModel = this._findActiveModel(this.scene);
         
         if (!activeModel) {
             this.logger.error("SurfaceAreaMeasurement: No model loaded to calculate surface area on.");
@@ -32,15 +54,14 @@ export class SurfaceAreaMeasurement extends BasePolygonMeasurement {
 
         // Perform the actual surface area calculation
         const { surfaceArea, highlightedGeometry } = this.calculator.calculateSurfaceArea(activeModel, this.activeMeasurement.points);
-        // Placeholder removed
         
         this.activeMeasurement.value = surfaceArea;
         this.activeMeasurement.finished = true;
 
         // Add unique visuals for surface area (highlighting the faces on the model)
-        if (highlightedGeometry) { // Only add mesh if geometry exists
+        if (highlightedGeometry) { 
             const mesh = new THREE.Mesh(highlightedGeometry, this.materials.highlightedFaces);
-            mesh.renderOrder = 996; // Ensure it renders slightly below lines/points
+            mesh.renderOrder = 996;
             this.scene.add(mesh);
             this.activeMeasurement.visuals.fill = mesh;
         } else {

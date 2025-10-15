@@ -1,9 +1,9 @@
 // ============================================================================
-// FILE: src/modules/measurements/SurfaceAreaCalculator.js (FIXED: Missing Import)
+// FILE: src/modules/measurements/utils/SurfaceAreaCalculator.js (FIXED: Robust Geometric Predicate)
 // ============================================================================
 
 import * as THREE from 'three';
-import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'; // <-- FIX: Import required utility
+import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /**
  * @class SurfaceAreaCalculator
@@ -13,21 +13,50 @@ import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUti
 export class SurfaceAreaCalculator {
     constructor(logger) {
         this.logger = logger;
+        // Pre-allocate temporary vectors for efficiency and safety
+        this._temp = {
+            vA_world: new THREE.Vector3(),
+            vB_world: new THREE.Vector3(),
+            vC_world: new THREE.Vector3(),
+            center: new THREE.Vector3(),
+            relative: new THREE.Vector3(),
+            edge1: new THREE.Vector3(),
+            edge2: new THREE.Vector3(),
+            cross: new THREE.Vector3()
+        };
     }
 
     /**
      * Calculate the surface area of a model within a polygon boundary
-     * @param {THREE.Mesh} model - The 3D model
+     * @param {THREE.Mesh|THREE.Group} model - The 3D model or group containing it
      * @param {Array<THREE.Vector3>} polygonPoints - Polygon vertices in world space
      * @returns {Object} { surfaceArea: number, highlightedGeometry: THREE.BufferGeometry }
      */
     calculateSurfaceArea(model, polygonPoints) {
-        if (!model || !model.geometry) {
-            this.logger.warn('SurfaceAreaCalculator: Invalid model or geometry');
+        if (!model) {
+            this.logger.warn('SurfaceAreaCalculator: Invalid model provided');
             return { surfaceArea: 0, highlightedGeometry: null };
         }
+        
+        let mesh = model.isMesh ? model : null;
+        if (!mesh) {
+            model.traverse(child => {
+                if (child.isMesh && !mesh) {
+                    mesh = child;
+                }
+            });
+        }
+        
+        if (!mesh || !mesh.geometry) {
+            this.logger.warn('SurfaceAreaCalculator: No renderable mesh found in model/group');
+            return { surfaceArea: 0, highlightedGeometry: null };
+        }
+        
+        // Ensure the mesh's world matrix is up to date (CRITICAL STEP)
+        mesh.updateWorldMatrix(true, false);
+        const modelWorldMatrix = mesh.matrixWorld;
 
-        const geometry = model.geometry;
+        const geometry = mesh.geometry;
         const positionAttribute = geometry.attributes.position;
 
         if (!positionAttribute) {
@@ -54,9 +83,7 @@ export class SurfaceAreaCalculator {
 
         this.logger.info(`SurfaceAreaCalculator: Processing ${faceCount} faces`);
 
-        const vA = new THREE.Vector3();
-        const vB = new THREE.Vector3();
-        const vC = new THREE.Vector3();
+        const { vA_world, vB_world, vC_world } = this._temp;
 
         for (let faceIndex = 0; faceIndex < faceCount; faceIndex++) {
             // Get vertex indices
@@ -72,28 +99,29 @@ export class SurfaceAreaCalculator {
                 iC = faceIndex * 3 + 2;
             }
 
-            // Get vertices in local space
-            vA.fromBufferAttribute(positionAttribute, iA);
-            vB.fromBufferAttribute(positionAttribute, iB);
-            vC.fromBufferAttribute(positionAttribute, iC);
+            // Get vertices in world space
+            vA_world.fromBufferAttribute(positionAttribute, iA).applyMatrix4(modelWorldMatrix);
+            vB_world.fromBufferAttribute(positionAttribute, iB).applyMatrix4(modelWorldMatrix);
+            vC_world.fromBufferAttribute(positionAttribute, iC).applyMatrix4(modelWorldMatrix);
 
-            // Transform to world space
-            model.localToWorld(vA);
-            model.localToWorld(vB);
-            model.localToWorld(vC);
+            // Project all three vertices to 2D
+            const vA_2D = this._projectPointTo2D(vA_world, projectionBasis);
+            const vB_2D = this._projectPointTo2D(vB_world, projectionBasis);
+            const vC_2D = this._projectPointTo2D(vC_world, projectionBasis);
+            
+            // === CRITICAL GEOMETRIC PREDICATE FIX ===
+            // Check if ANY of the three vertices is inside the projected polygon. 
+            const isInside = this._isPointInPolygon(vA_2D, polygon2D) || 
+                             this._isPointInPolygon(vB_2D, polygon2D) || 
+                             this._isPointInPolygon(vC_2D, polygon2D);
 
-            // Calculate triangle center
-            const triangleCenter = new THREE.Vector3()
-                .add(vA).add(vB).add(vC)
-                .divideScalar(3);
 
-            // Project to 2D and test
-            const center2D = this._projectPointTo2D(triangleCenter, projectionBasis);
-
-            if (this._isPointInPolygon(center2D, polygon2D)) {
-                const area = this._calculateTriangleArea(vA, vB, vC);
+            if (isInside) {
+                // Calculate the true 3D area of the face in world space
+                const area = this._calculateTriangleArea(vA_world, vB_world, vC_world);
                 totalArea += area;
-                facesToHighlight.push(new THREE.Triangle(vA.clone(), vB.clone(), vC.c‌lone()));
+                // Store clones for highlighting
+                facesToHighlight.push(new THREE.Triangle(vA_world.clone(), vB_world.clone(), vC_world.clone()));
             }
         }
 
@@ -144,37 +172,57 @@ export class SurfaceAreaCalculator {
     }
 
     _projectPointTo2D(point, basis) {
-        const relativePoint = point.clone().sub(basis.origin);
+        const relativePoint = this._temp.relative.copy(point).sub(basis.origin);
         return new THREE.Vector2(
             relativePoint.dot(basis.uAxis),
             relativePoint.dot(basis.vAxis)
         );
     }
-
+    
+    /**
+     * @private
+     * @description Robust ray-casting algorithm for 2D Point-in-Polygon test.
+     */
     _isPointInPolygon(point, polygon) {
         let inside = false;
         const n = polygon.length;
+        const tolerance = 1e-6; 
 
         for (let i = 0, j = n - 1; i < n; j = i++) {
             const xi = polygon[i].x;
             const yi = polygon[i].y;
             const xj = polygon[j].x;
             const yj = polygon[j].y;
-
-            const intersect = ((yi > point.y) !== (yj > point.y))
-                && (point.x < (xj - xi) * (point.y - yi) / (yj - yi + 1e-10) + xi);
             
-            if (intersect) inside = !inside;
+            // Check if point is on a boundary (simple check for robustness)
+            if (Math.abs(point.y - yi) < tolerance && Math.abs(point.x - xi) < tolerance) {
+                return true; 
+            }
+            
+            // Ray casting check
+            const isIntersecting = ((yi > point.y) !== (yj > point.y));
+            
+            if (isIntersecting) {
+                const yDiff = yj - yi;
+                
+                if (Math.abs(yDiff) > tolerance) {
+                    const xIntersect = (xj - xi) * (point.y - yi) / yDiff + xi;
+                    if (point.x < xIntersect) {
+                        inside = !inside;
+                    }
+                }
+            }
         }
 
         return inside;
     }
 
     _calculateTriangleArea(vA, vB, vC) {
-        const edge1 = new THREE.Vector3().subVectors(vB, vA);
-        const edge2 = new THREE.Vector3().subVectors(vC, vA);
-        const cross = new THREE.Vector3().crossVectors(edge1, edge2);
-        return cross.length() / 2;
+        // Area of a triangle in 3D using the magnitude of the cross product
+        this._temp.edge1.subVectors(vB, vA);
+        this._temp.edge2.subVectors(vC, vA);
+        this._temp.cross.crossVectors(this._temp.edge1, this._temp.edge2);
+        return this._temp.cross.length() / 2;
     }
 
     _createHighlightGeometry(triangles) {
@@ -195,7 +243,7 @@ export class SurfaceAreaCalculator {
             return BufferGeometryUtils.mergeGeometries(geometries);
         } catch (error) {
             this.logger.error('SurfaceAreaCalculator: Error merging geometries', error);
-            return geometries[0];
+            return geometries[0] || null;
         }
     }
 }
