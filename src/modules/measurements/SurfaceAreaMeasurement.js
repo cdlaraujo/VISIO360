@@ -1,12 +1,58 @@
 import * as THREE from 'three';
-import { BasePolygonMeasurement } from './common/BasePolygonMeasurement.js';
+import { BaseMeasurement } from './common/BaseMeasurement.js';
 import { SurfaceAreaCalculator } from './utils/SurfaceAreaCalculator.js';
 
-export class SurfaceAreaMeasurement extends BasePolygonMeasurement {
+export class SurfaceAreaMeasurement extends BaseMeasurement {
     constructor(scene, materials, logger, eventBus) {
         super(scene, materials, logger, eventBus, 'surfaceArea');
-        // The SurfaceAreaCalculator is instantiated here
         this.calculator = new SurfaceAreaCalculator(logger); // Instantiate calculator
+
+        // Listen for the event to finish the polygon (logic moved from BasePolygonMeasurement)
+        this.eventBus.on('measurement:area:finish', () => {
+            if (this.activeMeasurement && this.toolName === this.activeMeasurement.type) {
+                this._finishMeasurement();
+            }
+        });
+    }
+
+    /**
+     * @private
+     * @description Handles point selection for polygons, drawing lines between them.
+     * Logic moved from BasePolygonMeasurement.
+     */
+    _handlePointSelected(point) {
+        super._handlePointSelected(point); // Calls BaseMeasurement to add the point visual
+
+        const points = this.activeMeasurement.points;
+        if (points.length > 1) {
+            // Add a line from the previous point to the new one
+            this._addLineVisual(points[points.length - 2], points[points.length - 1]);
+        }
+        if (points.length >= 2) {
+            // Update the dashed "preview" line that shows the closing segment
+            this._updatePreviewLine();
+        }
+    }
+
+    /**
+     * @private
+     * @description Updates the dashed preview line from the last point to the first.
+     * Logic moved from BasePolygonMeasurement.
+     */
+    _updatePreviewLine() {
+        if (this.activeMeasurement.visuals.previewLine) {
+            this.scene.remove(this.activeMeasurement.visuals.previewLine);
+            this.activeMeasurement.visuals.previewLine.geometry.dispose();
+        }
+
+        const firstPoint = this.activeMeasurement.points[0];
+        const lastPoint = this.activeMeasurement.points[this.activeMeasurement.points.length - 1];
+
+        const geometry = new THREE.BufferGeometry().setFromPoints([lastPoint, firstPoint]);
+        const line = new THREE.Line(geometry, this.materials.previewLine);
+        line.computeLineDistances();
+        this.scene.add(line);
+        this.activeMeasurement.visuals.previewLine = line;
     }
 
     /**
@@ -14,36 +60,44 @@ export class SurfaceAreaMeasurement extends BasePolygonMeasurement {
      * @description Robustly searches the scene for the main 3D model object.
      */
     _findActiveModel(scene) {
-        // Exclude Three.js helpers, cameras, and measurement groups
-        const EXCLUDE_NAMES = ['measurements', 'remote-annotations', 'GridHelper', 'remote-annotations'];
+        const EXCLUDE_NAMES = ['measurements', 'remote-annotations', 'GridHelper'];
         const EXCLUDE_TYPES = ['AmbientLight', 'DirectionalLight', 'PerspectiveCamera'];
-
         let activeModel = null;
 
-        // Traverse the scene looking for the main model (a Mesh or a Group)
         scene.traverse((child) => {
-            if (activeModel) return; // Stop search once found
-
-            if (EXCLUDE_TYPES.includes(child.type) || EXCLUDE_NAMES.includes(child.name)) {
-                return;
-            }
-
-            // Check if it's the root model container
+            if (activeModel) return;
+            if (EXCLUDE_TYPES.includes(child.type) || EXCLUDE_NAMES.includes(child.name)) return;
             if (child.isObject3D && child.parent === scene) {
-                // If it's a Mesh, Group, or Object3D directly under the scene, it's our model.
                 activeModel = child;
             }
         });
-
-        // The calculator expects an object that has a geometry or children with geometry
         return activeModel;
     }
 
+    /**
+     * @private
+     * @description Finalizes the measurement, calculates the surface area, and adds visuals.
+     */
     _finishMeasurement() {
-        super._finishMeasurement(); // Handles cleanup and adding the closing line
-        if (!this.activeMeasurement) return; // Finish was cancelled
+        // --- Logic moved from BasePolygonMeasurement ---
+        if (!this.activeMeasurement || this.activeMeasurement.points.length < 3) {
+            this.logger.warn(`${this.constructor.name}: Cannot finish, requires at least 3 points.`);
+            if (this.activeMeasurement) {
+                this.cancelActiveMeasurement(); // Clean up invalid measurement
+            }
+            return;
+        }
 
-        // Find the active 3D model using the robust search
+        if (this.activeMeasurement.visuals.previewLine) {
+            this.scene.remove(this.activeMeasurement.visuals.previewLine);
+            this.activeMeasurement.visuals.previewLine.geometry.dispose();
+            this.activeMeasurement.visuals.previewLine = null;
+        }
+
+        const points = this.activeMeasurement.points;
+        this._addLineVisual(points[points.length - 1], points[0]);
+        // --- End of moved logic ---
+
         const activeModel = this._findActiveModel(this.scene);
         
         if (!activeModel) {
@@ -52,13 +106,11 @@ export class SurfaceAreaMeasurement extends BasePolygonMeasurement {
             return;
         }
 
-        // Perform the actual surface area calculation
         const { surfaceArea, highlightedGeometry } = this.calculator.calculateSurfaceArea(activeModel, this.activeMeasurement.points);
         
         this.activeMeasurement.value = surfaceArea;
         this.activeMeasurement.finished = true;
 
-        // Add unique visuals for surface area (highlighting the faces on the model)
         if (highlightedGeometry) { 
             const mesh = new THREE.Mesh(highlightedGeometry, this.materials.highlightedFaces);
             mesh.renderOrder = 996;
@@ -67,7 +119,6 @@ export class SurfaceAreaMeasurement extends BasePolygonMeasurement {
         } else {
             this.logger.warn("SurfaceAreaMeasurement: No geometry to highlight (area is 0 or calculation failed).");
         }
-
 
         this._addAreaLabel(this.activeMeasurement.points, surfaceArea);
 

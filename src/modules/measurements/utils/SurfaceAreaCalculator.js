@@ -1,150 +1,115 @@
 import * as THREE from 'three';
-import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import polygonClipping from 'polygon-clipping';
 
 /**
  * @class SurfaceAreaCalculator
- * @description Handles complex surface area calculations using proper geometric clipping.
- * Single Responsibility: Calculate real surface area within polygon boundaries.
+ * @description Calculates surface area using a robust "Projected Area Correction" method.
+ * It finds the flat (2D) area and corrects it based on the average slope of the underlying terrain.
  */
 export class SurfaceAreaCalculator {
     constructor(logger) {
         this.logger = logger;
-        // Pre-allocate temporary vectors for efficiency
-        this._temp = {
-            vA_world: new THREE.Vector3(),
-            vB_world: new THREE.Vector3(),
-            vC_world: new THREE.Vector3(),
-            relative: new THREE.Vector3(),
-        };
+        this.raycaster = new THREE.Raycaster();
     }
 
-    calculateSurfaceArea(model, polygonPoints) {
-        if (!model) return { surfaceArea: 0, highlightedGeometry: null };
+    /**
+     * Calculates the 2D area of a polygon defined by 3D points projected onto a plane.
+     * @param {Array<THREE.Vector3>} points - The 3D vertices of the polygon.
+     * @returns {{area: number, plane: THREE.Plane}}
+     * @private
+     */
+    _getProjectedAreaAndPlane(points) {
+        if (points.length < 3) return { area: 0, plane: null };
+        
+        let totalArea = 0;
+        const plane = new THREE.Plane().setFromCoplanarPoints(points[0], points[1], points[2]);
+        
+        // Use Newell's method to handle non-planar polygons gracefully
+        let normal = new THREE.Vector3();
+        for (let i = 0; i < points.length; i++) {
+            const current = points[i];
+            const next = points[(i + 1) % points.length];
+            normal.x += (current.y - next.y) * (current.z + next.z);
+            normal.y += (current.z - next.z) * (current.x + next.x);
+            normal.z += (current.x - next.x) * (current.y + next.y);
+        }
+        
+        normal.normalize();
+        totalArea = new THREE.Vector3().copy(normal).dot(plane.normal) * new THREE.Triangle(points[0], points[1], points[2]).getArea();
 
-        // Find the first renderable mesh in the model
-        let mesh = model.isMesh ? model : model.getObjectByProperty('isMesh', true);
-        if (!mesh || !mesh.geometry) {
-            this.logger.warn('SurfaceAreaCalculator: No renderable mesh found.');
+        for (let i = 1; i < points.length - 1; i++) {
+             totalArea += new THREE.Triangle(points[0], points[i], points[i + 1]).getArea();
+        }
+
+        return { area: Math.abs(totalArea / 2), plane };
+    }
+
+
+    /**
+     * Main calculation method.
+     * @param {THREE.Object3D} model - The 3D model to measure.
+     * @param {Array<THREE.Vector3>} polygonPoints - The 3D points of the user's selection.
+     * @returns {{surfaceArea: number, highlightedGeometry: THREE.BufferGeometry|null}}
+     */
+    calculateSurfaceArea(model, polygonPoints) {
+        // --- Step 1: Calculate the simple, flat (projected) area ---
+        const { area: flatArea, plane } = this._getProjectedAreaAndPlane(polygonPoints);
+
+        if (flatArea === 0) {
+            this.logger.warn("SurfaceAreaCalculator: Initial flat area is zero.");
             return { surfaceArea: 0, highlightedGeometry: null };
         }
 
-        mesh.updateWorldMatrix(true, false);
-        const modelWorldMatrix = mesh.matrixWorld;
-        const geometry = mesh.geometry;
-        const positionAttribute = geometry.attributes.position;
-        if (!positionAttribute) return { surfaceArea: 0, highlightedGeometry: null };
+        // --- Step 2: Sample the terrain to find the average slope ---
+        const samples = 9; // Number of points to sample inside the polygon
+        const barycenter = new THREE.Vector3();
+        polygonPoints.forEach(p => barycenter.add(p));
+        barycenter.divideScalar(polygonPoints.length);
 
-        // Project the user's 3D selection into a 2D polygon for clipping
-        const { projectionBasis, polygon2D } = this._projectPolygonTo2D(polygonPoints);
+        const samplePoints = [barycenter]; // Always include the center
+        // Add more sample points for better accuracy if needed
+        for (let i = 0; i < polygonPoints.length; i++) {
+            samplePoints.push(new THREE.Vector3().lerpVectors(barycenter, polygonPoints[i], 0.5));
+        }
 
-        let totalArea = 0;
-        const facesToHighlight = [];
-        const indexAttribute = geometry.index;
-        const faceCount = indexAttribute ? indexAttribute.count / 3 : positionAttribute.count / 3;
+        const surfaceNormals = [];
+        samplePoints.forEach(originPoint => {
+             // Cast rays from well above and below the sample point
+            const rayOrigin = originPoint.clone().add(plane.normal.clone().multiplyScalar(10000));
+            this.raycaster.set(rayOrigin, plane.normal.clone().negate());
+            let intersects = this.raycaster.intersectObject(model, true);
 
-        this.logger.info(`SurfaceAreaCalculator: Processing ${faceCount} faces with clipping.`);
-
-        const { vA_world, vB_world, vC_world } = this._temp;
-
-        // Iterate over each face of the model's geometry
-        for (let i = 0; i < faceCount; i++) {
-            const iA = indexAttribute ? indexAttribute.getX(i * 3) : i * 3;
-            const iB = indexAttribute ? indexAttribute.getX(i * 3 + 1) : i * 3 + 1;
-            const iC = indexAttribute ? indexAttribute.getX(i * 3 + 2) : i * 3 + 2;
-
-            vA_world.fromBufferAttribute(positionAttribute, iA).applyMatrix4(modelWorldMatrix);
-            vB_world.fromBufferAttribute(positionAttribute, iB).applyMatrix4(modelWorldMatrix);
-            vC_world.fromBufferAttribute(positionAttribute, iC).applyMatrix4(modelWorldMatrix);
-
-            // Project the 3D face triangle to the same 2D plane as the user's selection
-            const faceTriangle2D = [
-                this._projectPointTo2D(vA_world, projectionBasis),
-                this._projectPointTo2D(vB_world, projectionBasis),
-                this._projectPointTo2D(vC_world, projectionBasis)
-            ];
-
-            // Use the clipping library to find the exact intersection
-            const clippedPolygons = polygonClipping.intersection([polygon2D], [faceTriangle2D]);
-
-            if (clippedPolygons && clippedPolygons.length > 0) {
-                const faceNormal = new THREE.Plane().setFromCoplanarPoints(vA_world, vB_world, vC_world).normal;
-
-                // Process the resulting clipped shapes
-                clippedPolygons.forEach(multiPolygon => {
-                    multiPolygon.forEach(ring => {
-                        // Calculate the 3D area of the clipped 2D polygon
-                        const area = this._calculate3DPolygonAreaFrom2D(ring, projectionBasis, faceNormal);
-                        totalArea += area;
-
-                        // Create geometry for highlighting the exact clipped area
-                        const highlightVertices = ring.map(p => this._unprojectPointTo3D(p, projectionBasis, faceNormal, vA_world));
-                        for (let j = 1; j < highlightVertices.length - 1; j++) {
-                            facesToHighlight.push(new THREE.Triangle(
-                                highlightVertices[0].clone(),
-                                highlightVertices[j].clone(),
-                                highlightVertices[j + 1].clone()
-                            ));
-                        }
-                    });
-                });
+            if (intersects.length === 0) { // If missed, try from the other side
+                const oppositeRayOrigin = originPoint.clone().add(plane.normal.clone().multiplyScalar(-10000));
+                this.raycaster.set(oppositeRayOrigin, plane.normal);
+                intersects = this.raycaster.intersectObject(model, true);
             }
-        }
 
-        this.logger.info(`SurfaceAreaCalculator: Final Area = ${totalArea.toFixed(4)}m²`);
-        const highlightedGeometry = this._createHighlightGeometry(facesToHighlight);
-        return { surfaceArea: totalArea, highlightedGeometry };
-    }
-
-    _projectPolygonTo2D(points) {
-        const normal = new THREE.Plane().setFromCoplanarPoints(points[0], points[1], points[2]).normal;
-        const uAxis = new THREE.Vector3().crossVectors(Math.abs(normal.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0), normal).normalize();
-        const vAxis = new THREE.Vector3().crossVectors(normal, uAxis);
-        const projectionBasis = { origin: points[0], uAxis, vAxis, normal };
-        const polygon2D = points.map(p => this._projectPointTo2D(p, projectionBasis));
-        return { projectionBasis, polygon2D };
-    }
-
-    _projectPointTo2D(point, basis) {
-        const p = this._temp.relative.copy(point).sub(basis.origin);
-        return [p.dot(basis.uAxis), p.dot(basis.vAxis)];
-    }
-    
-    _unprojectPointTo3D(point2D, basis, faceNormal, originalFacePoint) {
-        const pointOnProjectionPlane = basis.origin.clone()
-            .add(basis.uAxis.clone().multiplyScalar(point2D[0]))
-            .add(basis.vAxis.clone().multiplyScalar(point2D[1]));
-
-        const facePlane = new THREE.Plane().setFromNormalAndCoplanarPoint(faceNormal, originalFacePoint);
-        const projectedPoint = new THREE.Vector3();
-        facePlane.projectPoint(pointOnProjectionPlane, projectedPoint);
-        return projectedPoint;
-    }
-
-    _calculate3DPolygonAreaFrom2D(polygon2D, basis, faceNormal) {
-        let area = 0;
-        for (let i = 0; i < polygon2D.length; i++) {
-            const p1 = polygon2D[i];
-            const p2 = polygon2D[(i + 1) % polygon2D.length];
-            area += (p1[0] * p2[1] - p2[0] * p1[1]);
-        }
-        const twoDArea = Math.abs(area / 2);
-        // Correct the 2D area to its true 3D area by accounting for the angle between the planes
-        const cosAngle = Math.abs(basis.normal.dot(faceNormal));
-        return twoDArea / (cosAngle > 1e-6 ? cosAngle : 1);
-    }
-    
-    _createHighlightGeometry(triangles) {
-        if (triangles.length === 0) return null;
-        const geometries = triangles.map(tri => {
-            const geom = new THREE.BufferGeometry();
-            geom.setAttribute('position', new THREE.Float32BufferAttribute([
-                tri.a.x, tri.a.y, tri.a.z,
-                tri.b.x, tri.b.y, tri.b.z,
-                tri.c.x, tri.c.y, tri.c.z
-            ], 3));
-            return geom;
+            if (intersects.length > 0 && intersects[0].face) {
+                surfaceNormals.push(intersects[0].face.normal);
+            }
         });
-        return BufferGeometryUtils.mergeGeometries(geometries);
+
+        if (surfaceNormals.length === 0) {
+            this.logger.warn("SurfaceAreaCalculator: Could not find any surface normals. Returning flat area.");
+            // Graceful fallback: if we can't find the surface, return the 2D area.
+            return { surfaceArea: flatArea, highlightedGeometry: null };
+        }
+
+        // --- Step 3: Average the normals and calculate the correction factor ---
+        const avgSurfaceNormal = new THREE.Vector3();
+        surfaceNormals.forEach(n => avgSurfaceNormal.add(n));
+        avgSurfaceNormal.divideScalar(surfaceNormals.length);
+
+        // The correction factor is based on the angle between the flat plane and the average surface
+        const cosAngle = Math.abs(plane.normal.dot(avgSurfaceNormal));
+        const correctionFactor = 1 / (cosAngle > 1e-6 ? cosAngle : 1); // Avoid division by zero
+        
+        const finalSurfaceArea = flatArea * correctionFactor;
+
+        this.logger.info(`Calculation: FlatArea(${flatArea.toFixed(2)}) * Correction(${correctionFactor.toFixed(2)}) = ${finalSurfaceArea.toFixed(2)}`);
+
+        // We no longer generate a complex mesh, so highlightedGeometry is null.
+        // The visual feedback is the polygon the user already drew.
+        return { surfaceArea: finalSurfaceArea, highlightedGeometry: null };
     }
 }
