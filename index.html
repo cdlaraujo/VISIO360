@@ -5,14 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Visualizador 3D Colaborativo</title>
     <link rel="stylesheet" href="/src/style.css" />
-    <script type="importmap">
-{
-    "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.151.3/build/three.module.js",
-        "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.151.3/examples/jsm/"
-    }
-}
-    </script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -82,44 +74,10 @@
         </div>
         <div id="measurements-panel" class="measurements-panel section">
             <div class="section-title">Medições</div>
-            <div id="measurements-container">
+            <div id="measurements-container"></div>
         </div>
-</div>
     </div>
 
-    <script type="module">
-        import { App } from './src/app/App.js';
-
-        function handleGlobalError(error) {
-            console.error('❌ Erro fatal na aplicação:', error);
-            document.getElementById('loading')?.remove();
-            document.getElementById('progress-bar-container')?.remove();
-            const appContainer = document.getElementById('app');
-            if (appContainer) {
-                appContainer.innerHTML = `
-                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #ff4444; background: rgba(0, 0, 0, 0.9); padding: 30px; border-radius: 12px; border: 1px solid #ff4444;">
-                        <h2>🚨 Erro na Aplicação</h2>
-                        <p><strong>Motivo:</strong> ${error.message || 'Erro desconhecido'}</p>
-                        <p style="font-size: 0.9em; color: #aaa; margin-top: 15px;">Verifique o console do navegador (F12) para detalhes.</p>
-                        <button onclick="location.reload()" style="background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; margin-top: 20px;">🔄 Tentar Novamente</button>
-                    </div>`;
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', async () => {
-            try {
-                const appContainer = document.getElementById('app');
-                if (!appContainer) throw new Error('Container #app não encontrado no DOM');
-                
-                const app = new App(appContainer);
-                await app.start();
-
-                window.app = app;
-                console.log('✅ Aplicação inicializada com sucesso!');
-            } catch (error) {
-                handleGlobalError(error);
-            }
-        });
-    </script>
+    <script type="module" src="/src/main.js"></script>
 </body>
 </html>
