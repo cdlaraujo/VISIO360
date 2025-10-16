@@ -3,11 +3,12 @@ import { BaseMeasurement } from './common/BaseMeasurement.js';
 import { SurfaceAreaCalculator } from './utils/SurfaceAreaCalculator.js';
 
 export class SurfaceAreaMeasurement extends BaseMeasurement {
-    constructor(scene, materials, logger, eventBus) {
-        super(scene, materials, logger, eventBus, 'surfaceArea');
-        this.calculator = new SurfaceAreaCalculator(logger); // Instantiate calculator
+    constructor(measurementGroup, materials, logger, eventBus) {
+        super(measurementGroup, materials, logger, eventBus, 'surfaceArea');
+        this.measurementGroup = measurementGroup; // Store the measurement group reference
+        this.calculator = new SurfaceAreaCalculator(logger);
 
-        // Listen for the event to finish the polygon (logic moved from BasePolygonMeasurement)
+        // Listen for the event to finish the polygon
         this.eventBus.on('measurement:area:finish', () => {
             if (this.activeMeasurement && this.toolName === this.activeMeasurement.type) {
                 this._finishMeasurement();
@@ -18,10 +19,21 @@ export class SurfaceAreaMeasurement extends BaseMeasurement {
     /**
      * @private
      * @description Handles point selection for polygons, drawing lines between them.
-     * Logic moved from BasePolygonMeasurement.
      */
     _handlePointSelected(point) {
-        super._handlePointSelected(point); // Calls BaseMeasurement to add the point visual
+        if (!this.activeMeasurement) {
+            this._startMeasurement();
+        }
+        
+        this.activeMeasurement.points.push(point);
+        
+        // Add point visual with correct material
+        const geometry = new THREE.SphereGeometry(0.08, 16, 12);
+        const sphere = new THREE.Mesh(geometry, this.materials.surfaceAreaPoint);
+        sphere.position.copy(point);
+        sphere.renderOrder = 999;
+        this.measurementGroup.add(sphere);
+        this.activeMeasurement.visuals.points.push(sphere);
 
         const points = this.activeMeasurement.points;
         if (points.length > 1) {
@@ -36,12 +48,23 @@ export class SurfaceAreaMeasurement extends BaseMeasurement {
 
     /**
      * @private
+     * @description Adds a line between two points with the correct material.
+     */
+    _addLineVisual(startPoint, endPoint) {
+        const geometry = new THREE.BufferGeometry().setFromPoints([startPoint, endPoint]);
+        const line = new THREE.Line(geometry, this.materials.surfaceAreaLine);
+        line.renderOrder = 998;
+        this.measurementGroup.add(line);
+        this.activeMeasurement.visuals.lines.push(line);
+    }
+
+    /**
+     * @private
      * @description Updates the dashed preview line from the last point to the first.
-     * Logic moved from BasePolygonMeasurement.
      */
     _updatePreviewLine() {
         if (this.activeMeasurement.visuals.previewLine) {
-            this.scene.remove(this.activeMeasurement.visuals.previewLine);
+            this.measurementGroup.remove(this.activeMeasurement.visuals.previewLine);
             this.activeMeasurement.visuals.previewLine.geometry.dispose();
         }
 
@@ -51,7 +74,7 @@ export class SurfaceAreaMeasurement extends BaseMeasurement {
         const geometry = new THREE.BufferGeometry().setFromPoints([lastPoint, firstPoint]);
         const line = new THREE.Line(geometry, this.materials.previewLine);
         line.computeLineDistances();
-        this.scene.add(line);
+        this.measurementGroup.add(line);
         this.activeMeasurement.visuals.previewLine = line;
     }
 
@@ -59,18 +82,53 @@ export class SurfaceAreaMeasurement extends BaseMeasurement {
      * @private
      * @description Robustly searches the scene for the main 3D model object.
      */
-    _findActiveModel(scene) {
+    _findActiveModel() {
         const EXCLUDE_NAMES = ['measurements', 'remote-annotations', 'GridHelper'];
-        const EXCLUDE_TYPES = ['AmbientLight', 'DirectionalLight', 'PerspectiveCamera'];
+        const EXCLUDE_TYPES = ['AmbientLight', 'DirectionalLight', 'PerspectiveCamera', 'Line', 'LineSegments', 'Points', 'Sprite'];
+        
         let activeModel = null;
+        let largestMesh = null;
+        let maxVertices = 0;
+
+        // Get the actual Three.js scene (parent of measurementGroup)
+        const scene = this.measurementGroup.parent;
+        if (!scene) {
+            this.logger.error("SurfaceAreaMeasurement: Could not access scene");
+            return null;
+        }
 
         scene.traverse((child) => {
-            if (activeModel) return;
+            // Skip excluded types and names
             if (EXCLUDE_TYPES.includes(child.type) || EXCLUDE_NAMES.includes(child.name)) return;
-            if (child.isObject3D && child.parent === scene) {
+            
+            // Look for mesh objects that could be the model
+            if (child.isMesh && child.geometry && child.geometry.attributes.position) {
+                const vertexCount = child.geometry.attributes.position.count;
+                
+                // Track the largest mesh (likely the main model)
+                if (vertexCount > maxVertices) {
+                    maxVertices = vertexCount;
+                    largestMesh = child;
+                }
+                
+                // If this is a substantial mesh at the scene root level, it's likely the model
+                if (vertexCount > 100 && child.parent === scene) {
+                    activeModel = child;
+                }
+            }
+            
+            // Also check for groups that contain meshes (common for GLTF models)
+            if (child.isGroup && child.children.some(c => c.isMesh) && child.parent === scene) {
                 activeModel = child;
             }
         });
+
+        // Fallback to the largest mesh if no root-level model found
+        if (!activeModel && largestMesh) {
+            activeModel = largestMesh;
+            this.logger.info("SurfaceAreaMeasurement: Using largest mesh as active model");
+        }
+
         return activeModel;
     }
 
@@ -79,58 +137,109 @@ export class SurfaceAreaMeasurement extends BaseMeasurement {
      * @description Finalizes the measurement, calculates the surface area, and adds visuals.
      */
     _finishMeasurement() {
-        // --- Logic moved from BasePolygonMeasurement ---
         if (!this.activeMeasurement || this.activeMeasurement.points.length < 3) {
             this.logger.warn(`${this.constructor.name}: Cannot finish, requires at least 3 points.`);
             if (this.activeMeasurement) {
-                this.cancelActiveMeasurement(); // Clean up invalid measurement
+                this.cancelActiveMeasurement();
             }
             return;
         }
 
+        // Remove preview line
         if (this.activeMeasurement.visuals.previewLine) {
-            this.scene.remove(this.activeMeasurement.visuals.previewLine);
+            this.measurementGroup.remove(this.activeMeasurement.visuals.previewLine);
             this.activeMeasurement.visuals.previewLine.geometry.dispose();
             this.activeMeasurement.visuals.previewLine = null;
         }
 
+        // Add closing line
         const points = this.activeMeasurement.points;
         this._addLineVisual(points[points.length - 1], points[0]);
-        // --- End of moved logic ---
 
-        const activeModel = this._findActiveModel(this.scene);
+        // Find the model to measure
+        const activeModel = this._findActiveModel();
         
         if (!activeModel) {
             this.logger.error("SurfaceAreaMeasurement: No model loaded to calculate surface area on.");
+            // Still show the flat area as fallback
+            const flatArea = this.calculator.calculateFlatArea(points);
+            this._addAreaLabel(points, flatArea, true);
+            this.activeMeasurement.value = flatArea;
+            this.activeMeasurement.finished = true;
+            this.eventBus.emit('measurement:surfaceArea:completed', { 
+                measurement: this.activeMeasurement,
+                isFlatArea: true 
+            });
             this.activeMeasurement = null;
             return;
         }
 
-        const { surfaceArea, highlightedGeometry } = this.calculator.calculateSurfaceArea(activeModel, this.activeMeasurement.points);
+        // Calculate the actual surface area
+        const result = this.calculator.calculateSurfaceArea(activeModel, points);
         
-        this.activeMeasurement.value = surfaceArea;
+        this.activeMeasurement.value = result.surfaceArea;
         this.activeMeasurement.finished = true;
 
-        if (highlightedGeometry) { 
-            const mesh = new THREE.Mesh(highlightedGeometry, this.materials.highlightedFaces);
+        // Add visual highlight if geometry was generated
+        if (result.highlightedGeometry) { 
+            const mesh = new THREE.Mesh(result.highlightedGeometry, this.materials.highlightedFaces);
             mesh.renderOrder = 996;
-            this.scene.add(mesh);
+            this.measurementGroup.add(mesh);
             this.activeMeasurement.visuals.fill = mesh;
-        } else {
-            this.logger.warn("SurfaceAreaMeasurement: No geometry to highlight (area is 0 or calculation failed).");
         }
 
-        this._addAreaLabel(this.activeMeasurement.points, surfaceArea);
+        // Add the area label
+        this._addAreaLabel(points, result.surfaceArea, false);
 
-        this.logger.info(`SurfaceAreaMeasurement: Completed - ${surfaceArea.toFixed(2)}m²`);
-        this.eventBus.emit('measurement:surfaceArea:completed', { measurement: this.activeMeasurement });
+        this.logger.info(`SurfaceAreaMeasurement: Completed - ${result.surfaceArea.toFixed(2)}m² (method: ${result.method})`);
+        
+        this.eventBus.emit('measurement:surfaceArea:completed', { 
+            measurement: this.activeMeasurement,
+            method: result.method
+        });
+        
         this.activeMeasurement = null;
     }
 
-    _addAreaLabel(points, area) {
+    /**
+     * @private
+     * @description Adds a label showing the area value using proper utility function
+     */
+    _addAreaLabel(points, area, isFlatArea = false) {
         const center = new THREE.Vector3();
         points.forEach(p => center.add(p));
         center.divideScalar(points.length);
-        this._addLabel(`${area.toFixed(2)}m²`, center.add(new THREE.Vector3(0, 0.2, 0)), '#00aaff');
+        center.add(new THREE.Vector3(0, 0.2, 0));
+        
+        const labelText = isFlatArea 
+            ? `${area.toFixed(2)}m² (flat)` 
+            : `${area.toFixed(2)}m²`;
+            
+        // Use the utility function from DrawingUtils
+        const { createTextSprite } = require('../../../utils/DrawingUtils.js');
+        const label = createTextSprite(labelText, '#00aaff');
+        label.position.copy(center);
+        this.measurementGroup.add(label);
+        this.activeMeasurement.visuals.labels.push(label);
+    }
+
+    /**
+     * @private
+     * @description Creates a new measurement object
+     */
+    _startMeasurement() {
+        this.activeMeasurement = {
+            id: this._generateId(),
+            type: this.toolName,
+            points: [],
+            visuals: { points: [], lines: [], fill: null, previewLine: null, labels: [] },
+            finished: false
+        };
+        this.measurements.push(this.activeMeasurement);
+        this.logger.info(`${this.constructor.name}: Started new measurement.`);
+    }
+
+    _generateId() {
+        return `${this.toolName}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
 }

@@ -71,21 +71,20 @@ export class AreaMeasurement extends BasePolygonMeasurement {
     }
 
     /**
-     * ✅ CORRECTED: Calculates the PROJECTED area of a 3D polygon onto the XY plane.
-     * This uses the standard 2D shoelace algorithm, ignoring the Z component, which is the
-     * correct method for calculating planimetric area.
      * @param {THREE.Vector3[]} points - The 3D vertices of the polygon.
      * @returns {number} The calculated 2D projected area.
      */
     _calculateProjectedPolygonArea(points) {
         if (points.length < 3) return 0;
-        let area = 0;
-        for (let i = 0; i < points.length; i++) {
-            const j = (i + 1) % points.length;
-            // Uses only X and Y coordinates to get the projected area
-            area += points[i].x * points[j].y;
-            area -= points[j].x * points[i].y;
+    
+        let totalArea = 0;
+        
+        // Triangulate from the first vertex
+        for (let i = 1; i < points.length - 1; i++) {
+            const triangle = new THREE.Triangle(points[0], points[i], points[i + 1]);
+            totalArea += triangle.getArea();
         }
-        return Math.abs(area) / 2;
+        
+        return totalArea;
     }
 }
