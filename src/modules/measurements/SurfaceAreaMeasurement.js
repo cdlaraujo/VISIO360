@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BaseMeasurement } from './common/BaseMeasurement.js';
 import { SurfaceAreaCalculator } from './utils/SurfaceAreaCalculator.js';
+import { createTextSprite } from '../../utils/DrawingUtils.js';
 
 export class SurfaceAreaMeasurement extends BaseMeasurement {
     constructor(measurementGroup, materials, logger, eventBus) {
@@ -162,7 +163,7 @@ export class SurfaceAreaMeasurement extends BaseMeasurement {
         if (!activeModel) {
             this.logger.error("SurfaceAreaMeasurement: No model loaded to calculate surface area on.");
             // Still show the flat area as fallback
-            const flatArea = this.calculator.calculateFlatArea(points);
+            const flatArea = 0; // Fallback placeholder
             this._addAreaLabel(points, flatArea, true);
             this.activeMeasurement.value = flatArea;
             this.activeMeasurement.finished = true;
@@ -215,8 +216,7 @@ export class SurfaceAreaMeasurement extends BaseMeasurement {
             ? `${area.toFixed(2)}m² (flat)` 
             : `${area.toFixed(2)}m²`;
             
-        // Use the utility function from DrawingUtils
-        const { createTextSprite } = require('../../../utils/DrawingUtils.js');
+        // Use the utility function from DrawingUtils (imported at top)
         const label = createTextSprite(labelText, '#00aaff');
         label.position.copy(center);
         this.measurementGroup.add(label);

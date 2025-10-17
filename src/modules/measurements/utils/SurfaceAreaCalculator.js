@@ -2,29 +2,205 @@ import * as THREE from 'three';
 
 /**
  * @class SurfaceAreaCalculator
- * @description Calculates surface area using a robust "Projected Area Correction" method.
- * It finds the flat (2D) area and corrects it based on the average slope of the underlying terrain.
+ * @description Calculates surface area by finding all mesh triangles inside the polygon
+ * and summing their actual 3D areas. Uses bounding box optimization.
  */
 export class SurfaceAreaCalculator {
     constructor(logger) {
         this.logger = logger;
-        this.raycaster = new THREE.Raycaster();
     }
 
     /**
-     * Calculates the 2D area of a polygon defined by 3D points projected onto a plane.
-     * @param {Array<THREE.Vector3>} points - The 3D vertices of the polygon.
-     * @returns {{area: number, plane: THREE.Plane}}
+     * Main calculation method
+     * @param {THREE.Object3D} model - The 3D model to measure.
+     * @param {Array<THREE.Vector3>} polygonPoints - The 3D points of the user's selection.
+     * @returns {{surfaceArea: number, highlightedGeometry: THREE.BufferGeometry|null, method: string}}
+     */
+    calculateSurfaceArea(model, polygonPoints) {
+        if (polygonPoints.length < 3) {
+            this.logger.warn("SurfaceAreaCalculator: Need at least 3 points for a polygon.");
+            return { surfaceArea: 0, highlightedGeometry: null, method: 'invalid' };
+        }
+
+        // Step 1: Create bounding box from polygon (the "neighborhood")
+        const boundingBox = this._getBoundingBox(polygonPoints);
+        const margin = this._calculateMargin(boundingBox);
+        boundingBox.expandByScalar(margin); // Add some margin
+        
+        this.logger.info(`SurfaceAreaCalculator: Bounding box - Min: ${boundingBox.min.toArray()}, Max: ${boundingBox.max.toArray()}`);
+
+        // Step 2: Create a plane for projection
+        const plane = this._getBestFitPlane(polygonPoints);
+        
+        // Step 3: Project polygon points for 2D checking
+        const projectedPolygon = polygonPoints.map(p => this._projectPointToPlane(p, plane));
+
+        // Step 4: Find triangles inside the polygon (only in the neighborhood!)
+        let totalArea = 0;
+        let triangleCount = 0;
+        let verticesChecked = 0;
+        let verticesSkipped = 0;
+        const highlightedTriangles = [];
+
+        model.traverse((child) => {
+            if (!child.isMesh || !child.geometry) return;
+
+            const geometry = child.geometry;
+            const positionAttribute = geometry.attributes.position;
+            
+            if (!positionAttribute) return;
+
+            const indices = geometry.index ? geometry.index.array : null;
+            const vertexCount = positionAttribute.count;
+            const matrix = child.matrixWorld;
+
+            // Process triangles
+            if (indices) {
+                // Indexed geometry
+                for (let i = 0; i < indices.length; i += 3) {
+                    const v1 = this._getVertex(positionAttribute, indices[i], matrix);
+                    const v2 = this._getVertex(positionAttribute, indices[i + 1], matrix);
+                    const v3 = this._getVertex(positionAttribute, indices[i + 2], matrix);
+                    
+                    // OPTIMIZATION: Skip if triangle is outside bounding box
+                    if (!this._isTriangleInBoundingBox(v1, v2, v3, boundingBox)) {
+                        verticesSkipped += 3;
+                        continue;
+                    }
+                    
+                    verticesChecked += 3;
+                    const result = this._processTriangle(v1, v2, v3, projectedPolygon, plane);
+                    if (result.inside) {
+                        totalArea += result.area;
+                        triangleCount++;
+                        highlightedTriangles.push(v1, v2, v3);
+                    }
+                }
+            } else {
+                // Non-indexed geometry
+                for (let i = 0; i < vertexCount; i += 3) {
+                    const v1 = this._getVertex(positionAttribute, i, matrix);
+                    const v2 = this._getVertex(positionAttribute, i + 1, matrix);
+                    const v3 = this._getVertex(positionAttribute, i + 2, matrix);
+                    
+                    // OPTIMIZATION: Skip if triangle is outside bounding box
+                    if (!this._isTriangleInBoundingBox(v1, v2, v3, boundingBox)) {
+                        verticesSkipped += 3;
+                        continue;
+                    }
+                    
+                    verticesChecked += 3;
+                    const result = this._processTriangle(v1, v2, v3, projectedPolygon, plane);
+                    if (result.inside) {
+                        totalArea += result.area;
+                        triangleCount++;
+                        highlightedTriangles.push(v1, v2, v3);
+                    }
+                }
+            }
+        });
+
+        this.logger.info(`SurfaceAreaCalculator: Optimization - Checked ${verticesChecked} vertices, Skipped ${verticesSkipped} vertices`);
+        this.logger.info(`SurfaceAreaCalculator: Found ${triangleCount} triangles inside polygon, total area: ${totalArea.toFixed(2)}m²`);
+
+        // Create highlighted geometry
+        let highlightedGeometry = null;
+        if (highlightedTriangles.length > 0) {
+            highlightedGeometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(highlightedTriangles.length * 3);
+            highlightedTriangles.forEach((vertex, i) => {
+                positions[i * 3] = vertex.x;
+                positions[i * 3 + 1] = vertex.y;
+                positions[i * 3 + 2] = vertex.z;
+            });
+            highlightedGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            highlightedGeometry.computeVertexNormals();
+        }
+
+        return { 
+            surfaceArea: totalArea, 
+            highlightedGeometry: highlightedGeometry,
+            method: 'direct_triangle_sum',
+            triangleCount: triangleCount
+        };
+    }
+
+    /**
+     * Get bounding box from polygon points
      * @private
      */
-    _getProjectedAreaAndPlane(points) {
-        if (points.length < 3) return { area: 0, plane: null };
-        
-        let totalArea = 0;
-        const plane = new THREE.Plane().setFromCoplanarPoints(points[0], points[1], points[2]);
-        
-        // Use Newell's method to handle non-planar polygons gracefully
+    _getBoundingBox(points) {
+        const box = new THREE.Box3();
+        points.forEach(p => box.expandByPoint(p));
+        return box;
+    }
+
+    /**
+     * Calculate appropriate margin based on bounding box size
+     * @private
+     */
+    _calculateMargin(box) {
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const avgSize = (size.x + size.y + size.z) / 3;
+        return avgSize * 0.1; // 10% margin
+    }
+
+    /**
+     * Check if a triangle intersects with the bounding box
+     * @private
+     */
+    _isTriangleInBoundingBox(v1, v2, v3, box) {
+        // Check if at least one vertex is inside the box
+        return box.containsPoint(v1) || box.containsPoint(v2) || box.containsPoint(v3);
+    }
+
+    /**
+     * Process a single triangle
+     * @private
+     */
+    _processTriangle(v1, v2, v3, projectedPolygon, plane) {
+        // Calculate the center of the triangle
+        const center = new THREE.Vector3()
+            .add(v1)
+            .add(v2)
+            .add(v3)
+            .divideScalar(3);
+
+        // Project the center onto the polygon plane
+        const projectedCenter = this._projectPointToPlane(center, plane);
+
+        // Check if center is inside the polygon
+        const inside = this._isPointInPolygon(projectedCenter, projectedPolygon);
+
+        // Calculate the actual 3D area
+        const triangle = new THREE.Triangle(v1, v2, v3);
+        const area = triangle.getArea();
+
+        return { inside, area };
+    }
+
+    /**
+     * Get a vertex from geometry and transform to world space
+     * @private
+     */
+    _getVertex(positionAttribute, index, matrix) {
+        const vertex = new THREE.Vector3(
+            positionAttribute.getX(index),
+            positionAttribute.getY(index),
+            positionAttribute.getZ(index)
+        );
+        vertex.applyMatrix4(matrix);
+        return vertex;
+    }
+
+    /**
+     * Create best-fit plane using Newell's method
+     * @private
+     */
+    _getBestFitPlane(points) {
         let normal = new THREE.Vector3();
+        
         for (let i = 0; i < points.length; i++) {
             const current = points[i];
             const next = points[(i + 1) % points.length];
@@ -34,82 +210,51 @@ export class SurfaceAreaCalculator {
         }
         
         normal.normalize();
-        totalArea = new THREE.Vector3().copy(normal).dot(plane.normal) * new THREE.Triangle(points[0], points[1], points[2]).getArea();
-
-        for (let i = 1; i < points.length - 1; i++) {
-             totalArea += new THREE.Triangle(points[0], points[i], points[i + 1]).getArea();
-        }
-
-        return { area: Math.abs(totalArea / 2), plane };
+        return new THREE.Plane().setFromNormalAndCoplanarPoint(normal, points[0]);
     }
 
+    /**
+     * Project a point onto a plane
+     * @private
+     */
+    _projectPointToPlane(point, plane) {
+        const projected = new THREE.Vector3();
+        plane.projectPoint(point, projected);
+        return projected;
+    }
 
     /**
-     * Main calculation method.
-     * @param {THREE.Object3D} model - The 3D model to measure.
-     * @param {Array<THREE.Vector3>} polygonPoints - The 3D points of the user's selection.
-     * @returns {{surfaceArea: number, highlightedGeometry: THREE.BufferGeometry|null}}
+     * Point-in-polygon test using ray casting
+     * @private
      */
-    calculateSurfaceArea(model, polygonPoints) {
-        // --- Step 1: Calculate the simple, flat (projected) area ---
-        const { area: flatArea, plane } = this._getProjectedAreaAndPlane(polygonPoints);
-
-        if (flatArea === 0) {
-            this.logger.warn("SurfaceAreaCalculator: Initial flat area is zero.");
-            return { surfaceArea: 0, highlightedGeometry: null };
-        }
-
-        // --- Step 2: Sample the terrain to find the average slope ---
-        const samples = 9; // Number of points to sample inside the polygon
-        const barycenter = new THREE.Vector3();
-        polygonPoints.forEach(p => barycenter.add(p));
-        barycenter.divideScalar(polygonPoints.length);
-
-        const samplePoints = [barycenter]; // Always include the center
-        // Add more sample points for better accuracy if needed
-        for (let i = 0; i < polygonPoints.length; i++) {
-            samplePoints.push(new THREE.Vector3().lerpVectors(barycenter, polygonPoints[i], 0.5));
-        }
-
-        const surfaceNormals = [];
-        samplePoints.forEach(originPoint => {
-             // Cast rays from well above and below the sample point
-            const rayOrigin = originPoint.clone().add(plane.normal.clone().multiplyScalar(10000));
-            this.raycaster.set(rayOrigin, plane.normal.clone().negate());
-            let intersects = this.raycaster.intersectObject(model, true);
-
-            if (intersects.length === 0) { // If missed, try from the other side
-                const oppositeRayOrigin = originPoint.clone().add(plane.normal.clone().multiplyScalar(-10000));
-                this.raycaster.set(oppositeRayOrigin, plane.normal);
-                intersects = this.raycaster.intersectObject(model, true);
-            }
-
-            if (intersects.length > 0 && intersects[0].face) {
-                surfaceNormals.push(intersects[0].face.normal);
-            }
-        });
-
-        if (surfaceNormals.length === 0) {
-            this.logger.warn("SurfaceAreaCalculator: Could not find any surface normals. Returning flat area.");
-            // Graceful fallback: if we can't find the surface, return the 2D area.
-            return { surfaceArea: flatArea, highlightedGeometry: null };
-        }
-
-        // --- Step 3: Average the normals and calculate the correction factor ---
-        const avgSurfaceNormal = new THREE.Vector3();
-        surfaceNormals.forEach(n => avgSurfaceNormal.add(n));
-        avgSurfaceNormal.divideScalar(surfaceNormals.length);
-
-        // The correction factor is based on the angle between the flat plane and the average surface
-        const cosAngle = Math.abs(plane.normal.dot(avgSurfaceNormal));
-        const correctionFactor = 1 / (cosAngle > 1e-6 ? cosAngle : 1); // Avoid division by zero
+    _isPointInPolygon(point, polygon) {
+        const p0 = polygon[0];
+        const p1 = polygon[1];
         
-        const finalSurfaceArea = flatArea * correctionFactor;
+        const xAxis = new THREE.Vector3().subVectors(p1, p0).normalize();
+        const normal = new THREE.Vector3(0, 1, 0);
+        const yAxis = new THREE.Vector3().crossVectors(normal, xAxis).normalize();
 
-        this.logger.info(`Calculation: FlatArea(${flatArea.toFixed(2)}) * Correction(${correctionFactor.toFixed(2)}) = ${finalSurfaceArea.toFixed(2)}`);
+        const to2D = (p) => {
+            const v = new THREE.Vector3().subVectors(p, p0);
+            return { x: v.dot(xAxis), y: v.dot(yAxis) };
+        };
 
-        // We no longer generate a complex mesh, so highlightedGeometry is null.
-        // The visual feedback is the polygon the user already drew.
-        return { surfaceArea: finalSurfaceArea, highlightedGeometry: null };
+        const polygon2D = polygon.map(to2D);
+        const point2D = to2D(point);
+
+        // Ray casting algorithm
+        let inside = false;
+        for (let i = 0, j = polygon2D.length - 1; i < polygon2D.length; j = i++) {
+            const xi = polygon2D[i].x, yi = polygon2D[i].y;
+            const xj = polygon2D[j].x, yj = polygon2D[j].y;
+
+            const intersect = ((yi > point2D.y) !== (yj > point2D.y)) &&
+                (point2D.x < (xj - xi) * (point2D.y - yi) / (yj - yi) + xi);
+            
+            if (intersect) inside = !inside;
+        }
+
+        return inside;
     }
 }
