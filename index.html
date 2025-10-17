@@ -3,78 +3,196 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualizador 3D Colaborativo</title>
+    <title>Visio3D Professional - Visualizador 3D Colaborativo</title>
     <link rel="stylesheet" href="/src/style.css" />
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
-    <div id="app"></div>
-    <div id="loading" class="loading-spinner"></div>
-    <div id="progress-bar-container" class="progress-bar-container">
-        <p class="progress-text">Carregando modelo... <span id="progress-percentage">0%</span></p>
-        <div class="progress-bar">
-            <div id="progress-bar-fill" class="progress-bar-fill"></div>
+    <div class="cad-layout">
+        <header class="command-bar">
+            <div class="logo-section">
+                <img src="/nd-logo.avif" alt="Company Logo" class="company-logo">
+                <span class="app-title">Visio3D Professional</span>
+            </div>
+            <nav class="main-menu">
+                <button class="menu-item">Arquivo</button>
+                <button class="menu-item">Editar</button>
+                <button class="menu-item">Ver</button>
+                <button class="menu-item">Ferramentas</button>
+                <button class="menu-item">Colaboração</button>
+            </nav>
+            <div class="user-section">
+                <input type="text" id="user-name-input" class="user-name-field" placeholder="Seu nome" value="Usuário">
+                <button class="icon-btn" id="settings-btn" title="Configurações">⚙️</button>
+            </div>
+        </header>
+
+        <div class="tool-ribbon">
+            <div class="ribbon-section">
+                <label class="ribbon-label">Medição</label>
+                <div class="ribbon-tools">
+                    <button class="ribbon-btn" id="measure-tool-btn" title="Medir Distância (Ctrl+D)">
+                        <span class="icon">📏</span>
+                        <span class="label">Distância</span>
+                    </button>
+                    <button class="ribbon-btn" id="area-tool-btn" title="Calcular Área Plana (Ctrl+A)">
+                        <span class="icon">📐</span>
+                        <span class="label">Área</span>
+                    </button>
+                    <button class="ribbon-btn" id="surface-area-tool-btn" title="Calcular Área de Superfície (Ctrl+S)">
+                        <span class="icon">🗻</span>
+                        <span class="label">Superfície</span>
+                    </button>
+                </div>
+            </div>
+            <div class="ribbon-divider"></div>
+            <div class="ribbon-section">
+                <label class="ribbon-label">Modelo</label>
+                <div class="ribbon-tools">
+                    <button class="ribbon-btn" id="model-config-btn" title="Gerenciar Modelo (Ctrl+O)">
+                        <span class="icon">📦</span>
+                        <span class="label">Carregar</span>
+                    </button>
+                </div>
+            </div>
+            <div class="ribbon-divider"></div>
+            <div class="ribbon-section">
+                <label class="ribbon-label">Colaboração</label>
+                <div class="ribbon-tools">
+                    <button class="ribbon-btn" id="create-room-btn" title="Criar Nova Sala">
+                        <span class="icon">🚀</span>
+                        <span class="label">Nova Sala</span>
+                    </button>
+                    <button class="ribbon-btn" id="join-room-btn" title="Entrar em Sala Existente">
+                        <span class="icon">🔗</span>
+                        <span class="label">Entrar</span>
+                    </button>
+                </div>
+            </div>
+            <div class="ribbon-divider"></div>
+            <div class="ribbon-section">
+                <label class="ribbon-label">Limpeza</label>
+                <div class="ribbon-tools">
+                    <button class="ribbon-btn clear-btn" id="clear-all-btn" title="Limpar Todas as Medições (Ctrl+Del)">
+                        <span class="icon">🗑️</span>
+                        <span class="label">Limpar</span>
+                    </button>
+                </div>
+            </div>
         </div>
+        
+        <div id="app"></div>
+
+        <aside class="left-panel">
+            <div class="panel-header">
+                <h3>PROPRIEDADES</h3>
+                <button class="icon-btn-small panel-toggle-left" title="Minimizar Painel">◀</button>
+            </div>
+            <div class="panel-content">
+                <div id="model-info-section" class="property-group">
+                    <h4>Modelo</h4>
+                    <div class="property-item">
+                        <label>Nome:</label>
+                        <span id="model-name-display">Nenhum carregado</span>
+                    </div>
+                    <div class="property-item">
+                        <label>Formato:</label>
+                        <span id="model-format-display">-</span>
+                    </div>
+                    <div class="property-item">
+                        <label>Vértices:</label>
+                        <span id="model-vertices-display">-</span>
+                    </div>
+                </div>
+
+                <div id="collaboration-section" class="property-group">
+                    <h4>Colaboração</h4>
+                    
+                    <div id="room-connect-controls" style="display: block;">
+                        <button id="create-room-btn-panel" class="btn btn-success" style="width: 100%; margin-bottom: 8px;">🚀 Criar Sala</button>
+                        <button id="join-room-btn-panel" class="btn btn-secondary" style="width: 100%;">🔗 Entrar em Sala</button>
+                        
+                        <div id="join-room-input" style="display: none; margin-top: 12px;">
+                            <input type="text" id="room-id-input" class="input-field" placeholder="Código da sala ou URL">
+                            <button id="join-room-confirm-btn" class="btn btn-primary" style="width: 100%; margin-top: 8px;">Conectar</button>
+                            <button id="join-room-cancel-btn" class="btn btn-secondary" style="width: 100%; margin-top: 4px;">Cancelar</button>
+                        </div>
+                    </div>
+                    
+                    <div id="room-status" style="display: none;">
+                        <div class="property-item">
+                            <label>Status:</label>
+                            <span id="connection-status" class="status-badge">Desconectado</span>
+                        </div>
+                        <div class="property-item">
+                            <label>Sala:</label>
+                            <span id="room-code-display" style="font-family: monospace; font-size: 0.85em; cursor: pointer;" title="Clique para copiar">-</span>
+                        </div>
+                        <div class="property-item">
+                            <label>Participantes:</label>
+                            <span id="peer-count">1</span>
+                        </div>
+                        <button id="disconnect-room-btn" class="btn btn-secondary" style="width: 100%; margin-top: 12px;">Desconectar</button>
+                    </div>
+                    
+                    <div id="peers-container" style="margin-top: 12px; display: none;"></div>
+                </div>
+            </div>
+        </aside>
+
+        <aside class="right-panel">
+            <div class="panel-header">
+                <h3>MEDIÇÕES</h3>
+                <button class="icon-btn-small panel-toggle-right" title="Minimizar Painel">▶</button>
+            </div>
+            <div class="panel-content">
+                <div id="measurements-panel" class="measurements-panel">
+                    <div id="measurements-container"></div>
+                </div>
+            </div>
+        </aside>
+
+        <footer class="status-bar">
+            <div class="status-item">
+                <span id="tool-instructions">Pronto</span>
+            </div>
+            <div class="status-item">
+                <span id="coordinates">X: 0.00 | Y: 0.00 | Z: 0.00</span>
+            </div>
+            <div class="status-item">
+                <span id="fps-counter">FPS: 60</span>
+            </div>
+        </footer>
     </div>
 
-    <div id="ui-container">
-        <h1>Visio3D Colaborativo</h1>
-        <div id="room-section" class="section">
-            <div class="section-title">Sala de Colaboração</div>
-            <div id="room-connect-panel">
-                <input type="text" id="user-name-input" class="input-field" placeholder="Seu nome" value="Usuário">
-                <button id="create-room-btn" class="btn btn-success">🚀 Criar Nova Sala</button>
-                <button id="join-room-btn" class="btn btn-secondary">🔗 Entrar em Sala</button>
-                <div id="join-room-input" style="display: none; margin-top: 10px;">
-                    <input type="text" id="room-id-input" class="input-field" placeholder="Código da sala (e.g. ABC123)">
-                    <button id="join-room-confirm-btn" class="btn btn-primary">Entrar Agora</button>
+    <div id="model-loading-section" class="modal" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Carregar Modelo 3D</h3>
+                <button class="modal-close" id="close-model-modal">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="model-input-area">
+                    <div class="input-group">
+                        <label>URL do Modelo</label>
+                        <input type="text" id="model-url-input" class="input-field" placeholder="https://exemplo.com/modelo.glb">
+                        <button id="load-model-url-btn" class="btn btn-primary">Carregar via URL</button>
+                    </div>
+                    <div class="divider"><span>ou</span></div>
+                    <div class="input-group">
+                        <label for="model-input" class="custom-file-upload">
+                            <span class="icon">📁</span>
+                            <span>Carregar do Computador</span>
+                            <span class="file-hint">.ply, .gltf, .glb</span>
+                        </label>
+                        <input type="file" id="model-input" accept=".ply,.gltf,.glb" />
+                    </div>
+                </div>
+                <div id="model-info-area" style="display:none;">
+                    <p style="margin: 0 0 16px 0;">Modelo atual: <b id="current-model-name"></b></p>
+                    <button id="change-model-btn" class="btn btn-secondary">Trocar Modelo</button>
                 </div>
             </div>
-            <div id="room-info-panel" style="display: none;">
-                <div class="status-indicator">
-                    <span id="status-dot" class="status-dot"></span>
-                    <span id="connection-status">Desconectado</span>
-                </div>
-                <div class="room-code-display">
-                    <label>Código da Sala:</label>
-                    <div class="room-code" id="room-code-display"></div>
-                    <button id="copy-room-btn" class="btn btn-primary">📋 Copiar Link de Convite</button>
-                </div>
-                <div class="peers-list">
-                    <label>👥 Usuários Online: <span id="peer-count">1</span></label>
-                    <div id="peers-container"></div>
-                </div>
-            </div>
-        </div>
-        <div id="model-loading-section" class="section">
-            <div class="section-title">Modelo 3D</div>
-            <div id="model-input-area">
-                <p class="hint">Cole um link público (URL) do seu modelo 3D.</p>
-                <input type="text" id="model-url-input" class="input-field" placeholder="URL do modelo (.glb, .gltf, .ply)">
-                <button id="load-model-url-btn" class="btn btn-primary">Carregar Modelo via URL</button>
-                <div style="text-align:center; margin:10px 0; color: #888;">OU</div>
-                <label for="model-input" class="custom-file-upload">
-                    📁 Carregar do Computador (Individual)
-                </label>
-                <input type="file" id="model-input" accept=".ply,.gltf,.glb" />
-            </div>
-            <div id="model-info-area" style="display:none;">
-                <p style="margin: 0;">Modelo: <b id="model-name-display"></b></p>
-                <button id="change-model-btn" class="btn btn-secondary">Trocar Modelo</button>
-            </div>
-        </div>
-        <div class="tools-section">
-            <button id="measure-tool-btn" class="tool-btn">📏 Distância</button>
-            <button id="area-tool-btn" class="tool-btn">📐 Área Plana</button>
-            <button id="surface-area-tool-btn" class="tool-btn">🗻 Área de Superfície</button>
-            <button id="clear-all-btn" class="tool-btn clear-btn">🗑️ Limpar Medições</button>
-        </div>
-        <div id="instructions-panel" class="instructions-panel">
-            <p id="tool-instructions" style="margin:0;"></p>
-        </div>
-        <div id="measurements-panel" class="measurements-panel section">
-            <div class="section-title">Medições</div>
-            <div id="measurements-container"></div>
         </div>
     </div>
 
