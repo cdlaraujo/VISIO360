@@ -47,7 +47,8 @@ export class Renderer {
             this.focusOnObject(payload.model);
         });
 
-        this.eventBus.on('app:update', () => this.render());
+        // CHANGED: Listens to 'app:frame' for the 60Hz visual update heartbeat
+        this.eventBus.on('app:frame', () => this.render());
     }
     
     focusOnObject(object) {

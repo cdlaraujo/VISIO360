@@ -1,5 +1,6 @@
 import { Logger } from '../utils/Logger.js';
 import { EventBus } from './EventBus.js';
+import { StateManager } from './StateManager.js'; // New import
 import { SceneManager } from '../core/SceneManager.js';
 import { Renderer } from '../core/Renderer.js';
 import { ModelLoader } from '../core/ModelLoader.js';
@@ -24,12 +25,17 @@ export class App {
         this.container = container;
         this.logger = new Logger('INFO');
         this.eventBus = new EventBus(this.logger);
+        this.stateManager = new StateManager(this.logger); // New State Manager instance
 
         // --- Instantiate Core Systems ---
         this.sceneManager = new SceneManager(this.logger, this.eventBus);
         this.modelLoader = new ModelLoader(this.logger, this.eventBus);
-        this.uiManager = new UIManager(this.logger, this.eventBus);
-        this.toolController = new ToolController(this.logger, this.eventBus);
+        
+        // PASSING stateManager to UIManager 
+        this.uiManager = new UIManager(this.logger, this.eventBus, this.stateManager); 
+        // PASSING stateManager to ToolController 
+        this.toolController = new ToolController(this.logger, this.eventBus, this.stateManager); 
+        
         this.animationLoop = new AnimationLoop(this.eventBus);
     }
 
@@ -45,15 +51,16 @@ export class App {
             this.modelLoader.initialize();
             this.uiManager.initialize();
 
+            // PASSING stateManager to InteractionController
             this.interactionController = new InteractionController(
                 rendererComponents.camera,
                 rendererComponents.domElement,
                 this.logger,
-                this.eventBus
+                this.eventBus,
+                this.stateManager // Critical Dependency Injection
             );
             
             // --- Initialize Feature Modules ---
-            // The two main features of the application are instantiated here.
             this.collaboration = new Collaboration(scene, this.logger, this.eventBus);
             this.measurements = new Measurements(scene, this.logger, this.eventBus, this.collaboration);
 

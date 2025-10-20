@@ -4,19 +4,22 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 /**
  * @class InteractionController
  * @description Gerencia todas as interações do usuário com a cena 3D, incluindo controles de câmera e picking de objetos.
+ * Now reads the active tool state directly from the StateManager.
  */
 export class InteractionController {
-    constructor(camera, domElement, logger, eventBus) {
+    // StateManager dependency added
+    constructor(camera, domElement, logger, eventBus, stateManager) {
         this.camera = camera;
         this.domElement = domElement;
         this.logger = logger;
         this.eventBus = eventBus;
+        this.stateManager = stateManager; // New dependency
         this.controls = null;
 
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
         this.intersectableObjects = [];
-        this.currentTool = 'none';
+        this.currentTool = 'none'; // Keep a local, current copy for fast access
 
         // Configurações de zoom - valores simples e eficazes
         this.zoomConfig = {
@@ -50,16 +53,19 @@ export class InteractionController {
     }
 
     _setupEventListeners() {
-        this.eventBus.on('app:update', () => this.update());
+        this.eventBus.on('app:frame', () => this.update());
         this.eventBus.on('camera:focus', (payload) => this.focusOnObject(payload.object));
         this.eventBus.on('model:loaded', (payload) => {
             this.intersectableObjects = [payload.model];
             this._adjustZoomLimitsForModel(payload.model);
             this.logger.info('InteractionController: Novo objeto de interseção definido e limites ajustados.');
         });
-        this.eventBus.on('tool:changed', (payload) => {
-            this.currentTool = payload.activeTool;
+        
+        // NEW: Subscribe to StateManager for active tool changes (FIXES REGRESSION)
+        this.stateManager.subscribe('activeTool', (newTool) => {
+            this.currentTool = newTool;
             this._updateCursor();
+            this.logger.debug(`InteractionController: Active tool updated via StateManager to "${newTool}"`);
         });
 
         // Eventos do mouse para picking
