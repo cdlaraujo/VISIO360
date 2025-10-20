@@ -25,7 +25,8 @@ export class MeasurementUI {
             'none': 'Selecione uma ferramenta para começar.',
             'measure': 'Clique em dois pontos para medir a distância.',
             'area': 'Clique para criar um polígono. Dê um duplo-clique ou pressione ESC para calcular a área.',
-            'surfaceArea': 'Clique para criar um polígono. Dê um duplo-clique ou pressione ESC para calcular a área de superfície.'
+            'surfaceArea': 'Clique para criar um polígono. Dê um duplo-clique ou pressione ESC para calcular a área de superfície.',
+            'angle': 'Clique em três pontos para medir o ângulo (o primeiro ponto é o vértice).'
         };
         this.eventBus.emit('ui:instructions:update', { text: instructions[activeTool] || '' });
     }
