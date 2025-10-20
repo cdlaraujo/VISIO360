@@ -1,5 +1,5 @@
 // ============================================================================
-// FILE: src/modules/measurements/utils/MeasurementDisposer.js
+// FILE: src/modules/measurements/MeasurementDisposer.js
 // ============================================================================
 
 /**

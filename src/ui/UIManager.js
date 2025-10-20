@@ -56,7 +56,6 @@ export class UIManager {
             // Measurement tool elements (ribbon)
             measureToolBtn: document.getElementById('measure-tool-btn'),
             areaToolBtn: document.getElementById('area-tool-btn'),
-            angleToolBtn: document.getElementById('angle-tool-btn'),
             surfaceAreaToolBtn: document.getElementById('surface-area-tool-btn'),
             clearAllBtn: document.getElementById('clear-all-btn'),
 
@@ -81,7 +80,6 @@ export class UIManager {
             'fileInput',
             'measureToolBtn',
             'areaToolBtn',
-            'angleToolBtn',
             'surfaceAreaToolBtn',
             'clearAllBtn',
         ];
@@ -195,8 +193,6 @@ export class UIManager {
             this.eventBus.emit('tool:activate', { tool: 'measure' }));
         this._safeAddEventListener(this.ui.areaToolBtn, 'click', () => 
             this.eventBus.emit('tool:activate', { tool: 'area' }));
-        this._safeAddEventListener(this.ui.angleToolBtn, 'click', () => 
-            this.eventBus.emit('tool:activate', { tool: 'angle' }));
         this._safeAddEventListener(this.ui.surfaceAreaToolBtn, 'click', () => 
             this.eventBus.emit('tool:activate', { tool: 'surfaceArea' }));
         this._safeAddEventListener(this.ui.clearAllBtn, 'click', () => {
@@ -597,7 +593,7 @@ export class UIManager {
 
     _updateToolButtons(tool) {
         // Remove active class from all tool buttons
-        const toolButtons = [this.ui.measureToolBtn, this.ui.areaToolBtn, this.ui.angleToolBtn, this.ui.surfaceAreaToolBtn];
+        const toolButtons = [this.ui.measureToolBtn, this.ui.areaToolBtn, this.ui.surfaceAreaToolBtn];
         toolButtons.forEach(btn => {
             if (btn) btn.classList.remove('active');
         });
@@ -606,7 +602,6 @@ export class UIManager {
         const toolMap = {
             'measure': this.ui.measureToolBtn,
             'area': this.ui.areaToolBtn,
-            'angle': this.ui.angleToolBtn,
             'surfaceArea': this.ui.surfaceAreaToolBtn
         };
 
@@ -658,7 +653,6 @@ export class UIManager {
         createGroup('Distâncias', stats.distances, 'm');
         createGroup('Áreas Planas', stats.areas, 'm²');
         createGroup('Áreas de Superfície', stats.surfaceAreas, 'm²');
-        createGroup('Ângulos', stats.angles, '°');
 
         // Show/hide panel based on whether there are measurements
         this._safeUpdateElement(this.ui.measurementsPanel, el => {

@@ -5,7 +5,6 @@ import { MeasurementMaterials } from './measurements/utils/MeasurementMaterials.
 import { DistanceMeasurement } from './measurements/DistanceMeasurement.js';
 import { AreaMeasurement } from './measurements/AreaMeasurement.js';
 import { SurfaceAreaMeasurement } from './measurements/SurfaceAreaMeasurement.js';
-import { AngleMeasurement } from './measurements/AngleMeasurement.js';
 import { MeasurementDisposer } from './measurements/utils/MeasurementDisposer.js';
 import { MeasurementUI } from './measurements/MeasurementUI.js';
 
@@ -37,7 +36,6 @@ export class Measurements {
         this.distanceMeasurement = new DistanceMeasurement(this.measurementGroup, sharedMaterials, logger, eventBus);
         this.areaMeasurement = new AreaMeasurement(this.measurementGroup, sharedMaterials, logger, eventBus);
         this.surfaceAreaMeasurement = new SurfaceAreaMeasurement(this.measurementGroup, sharedMaterials, logger, eventBus);
-        this.angleMeasurement = new AngleMeasurement(this.measurementGroup, sharedMaterials, logger, eventBus);
 
         // This new worker handles all UI-related logic for measurements
         this.measurementUI = new MeasurementUI(eventBus, this);
@@ -57,7 +55,6 @@ export class Measurements {
         this.eventBus.on('measurement:distance:completed', () => this.measurementUI.update());
         this.eventBus.on('measurement:area:completed', () => this.measurementUI.update());
         this.eventBus.on('measurement:surfaceArea:completed', () => this.measurementUI.update());
-        this.eventBus.on('measurement:angle:completed', () => this.measurementUI.update());
         this.eventBus.on('annotation:changed', () => this.measurementUI.update());
 
         // When a tool changes, cancel any in-progress measurements.
@@ -65,7 +62,6 @@ export class Measurements {
             this.distanceMeasurement.cancelActiveMeasurement();
             this.areaMeasurement.cancelActiveMeasurement();
             this.surfaceAreaMeasurement.cancelActiveMeasurement();
-            this.angleMeasurement.cancelActiveMeasurement();
         });
 
         // Handle commands to clear or delete measurements.
@@ -77,14 +73,13 @@ export class Measurements {
 
     /**
      * Gathers all finished measurements from local modules and synced annotations.
-     * @returns {{distances: Array, areas: Array, surfaceAreas: Array, angles: Array}}
+     * @returns {{distances: Array, areas: Array, surfaceAreas: Array}}
      */
     getMeasurementStats() {
         const stats = {
             distances: [],
             areas: [],
-            surfaceAreas: [],
-            angles: []
+            surfaceAreas: []
         };
 
         const isConnected = this.collaboration?.isConnected() || false;
@@ -95,7 +90,6 @@ export class Measurements {
             stats.distances.push(...this.distanceMeasurement.getFinishedMeasurements());
             stats.areas.push(...this.areaMeasurement.getFinishedMeasurements());
             stats.surfaceAreas.push(...this.surfaceAreaMeasurement.getFinishedMeasurements());
-            stats.angles.push(...this.angleMeasurement.getFinishedMeasurements());
         } else {
             // If CONNECTED, the collaboration module's annotations are the unified source of truth.
             const allAnnotations = this.collaboration?.getAnnotations() || [];
@@ -118,7 +112,7 @@ export class Measurements {
      * @param {string} id - The ID of the measurement to remove.
      */
     clearMeasurement(id) {
-        const modules = [this.distanceMeasurement, this.areaMeasurement, this.surfaceAreaMeasurement, this.angleMeasurement];
+        const modules = [this.distanceMeasurement, this.areaMeasurement, this.surfaceAreaMeasurement];
         for (const module of modules) {
             const measurement = module.getMeasurementById(id);
             if (measurement) {
@@ -142,8 +136,7 @@ export class Measurements {
         const allMeasurements = [
             ...this.distanceMeasurement.measurements,
             ...this.areaMeasurement.measurements,
-            ...this.surfaceAreaMeasurement.measurements,
-            ...this.angleMeasurement.measurements
+            ...this.surfaceAreaMeasurement.measurements
         ];
 
         this.disposer.disposeMeasurements(allMeasurements);
@@ -151,7 +144,6 @@ export class Measurements {
         this.distanceMeasurement.measurements = [];
         this.areaMeasurement.measurements = [];
         this.surfaceAreaMeasurement.measurements = [];
-        this.angleMeasurement.measurements = [];
 
         this.measurementUI.update();
     }

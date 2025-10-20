@@ -1,5 +1,5 @@
 // ============================================================================
-// FILE: src/modules/measurements/utils/MeasurementMaterials.js
+// FILE: src/modules/measurements/MeasurementMaterials.js
 // ============================================================================
 
 import * as THREE from 'three';
@@ -47,19 +47,6 @@ export class MeasurementMaterials {
                 opacity: 0.3, 
                 side: THREE.DoubleSide, 
                 depthTest: false 
-            }),
-
-            // Angle measurement materials
-            anglePoint: new THREE.MeshBasicMaterial({ 
-                color: 0xffff00, 
-                depthTest: false, 
-                depthWrite: false 
-            }),
-            angleLine: new THREE.LineBasicMaterial({ 
-                color: 0xffff00, 
-                linewidth: 3, 
-                depthTest: false, 
-                depthWrite: false 
             }),
 
             // Surface area measurement materials
