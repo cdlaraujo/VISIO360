@@ -1,12 +1,9 @@
 // src/ui/UIManager.js - Fixed and Complete Version for Professional CAD Interface
 
 export class UIManager {
-    // StateManager dependency added
-    constructor(logger, eventBus, stateManager) {
+    constructor(logger, eventBus) {
         this.logger = logger;
         this.eventBus = eventBus;
-        this.stateManager = stateManager; // New dependency
-        this.ui = {}; // Initialize UI references container
     }
 
     initialize() {
@@ -14,13 +11,6 @@ export class UIManager {
         this._validateRequiredElements();
         this._setupPanelReferences(); // Add this line
         this._setupEventListeners();
-        
-        // NEW: Subscribe to StateManager immediately after setup
-        this.stateManager.subscribe('activeTool', (newTool) => {
-            this._updateToolButtons(newTool);
-            // Calls _updateInstructions with the active tool name
-            this._updateInstructions(newTool); 
-        });
     }
 
     _getUIReferences() {
@@ -201,7 +191,6 @@ export class UIManager {
         });
 
         // Tool buttons
-        // Tool buttons now emit 'tool:activate', which ToolController handles by writing to StateManager.
         this._safeAddEventListener(this.ui.measureToolBtn, 'click', () => 
             this.eventBus.emit('tool:activate', { tool: 'measure' }));
         this._safeAddEventListener(this.ui.areaToolBtn, 'click', () => 
@@ -216,8 +205,8 @@ export class UIManager {
         });
 
         // Event bus listeners
-        // REMOVED: this.eventBus.on('tool:changed', p => this._updateToolButtons(p.activeTool));
-        this.eventBus.on('ui:instructions:update', p => this._updateInstructions(p.text)); // Still listens for explicit text updates
+        this.eventBus.on('tool:changed', p => this._updateToolButtons(p.activeTool));
+        this.eventBus.on('ui:instructions:update', p => this._updateInstructions(p.text));
         this.eventBus.on('model:loading:progress', p => this._updateProgressBar(p.progress));
         this.eventBus.on('model:loaded', p => { 
             this._hideProgressBar(); 
@@ -276,6 +265,7 @@ export class UIManager {
 
     // ===== PANEL TOGGLE METHODS =====
 
+    // MODIFICATION: Rewritten to properly toggle classes for CSS transitions
     _togglePanel(side) {
         if (!side) return;
         
@@ -407,7 +397,7 @@ export class UIManager {
         window.app.collaboration.disconnect();
         
         // Reset UI to disconnected state
-        this._safeUpdateElement(this.ui.roomConnectControls, el => el.style.display = 'none');
+        this._safeUpdateElement(this.ui.roomConnectControls, el => el.style.display = 'block');
         this._safeUpdateElement(this.ui.roomStatus, el => el.style.display = 'none');
         this._safeUpdateElement(this.ui.joinRoomInput, el => el.style.display = 'none');
         this._safeUpdateElement(this.ui.peersContainer, el => {
@@ -626,18 +616,9 @@ export class UIManager {
         }
     }
 
-    // MODIFICATION: Instructions now rely on the active tool name from StateManager
-    _updateInstructions(activeTool) {
-        const instructions = {
-            'none': 'Pronto',
-            'measure': 'Clique em dois pontos para medir a distância.',
-            'area': 'Clique para criar um polígono. Dê um duplo-clique ou pressione ESC para calcular a área.',
-            'surfaceArea': 'Clique para criar um polígono. Dê um duplo-clique ou pressione ESC para calcular a área de superfície.',
-            'angle': 'Clique em três pontos para medir o ângulo (o primeiro ponto é o vértice).'
-        };
-        // Use the instructions map based on the new activeTool value
+    _updateInstructions(text) {
         this._safeUpdateElement(this.ui.toolInstructions, el => {
-            el.textContent = instructions[activeTool] || instructions['none'];
+            el.textContent = text || 'Pronto';
         });
     }
 
