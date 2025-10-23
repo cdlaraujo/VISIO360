@@ -13,11 +13,7 @@ import { Collaboration } from '../modules/collaboration.js';
 /**
  * @class App
  * @description
- * The main coordinator of the entire application. It follows a pure coordinator pattern.
- * Its responsibilities are:
- * 1. Instantiate all core systems and feature modules.
- * 2. Define the high-level event-based communication between these modules.
- * It contains no business logic itself, delegating all tasks to specialized worker modules.
+ * The main coordinator of the entire application.
  */
 export class App {
     constructor(container) {
@@ -53,7 +49,6 @@ export class App {
             );
             
             // --- Initialize Feature Modules ---
-            // The two main features of the application are instantiated here.
             this.collaboration = new Collaboration(scene, this.logger, this.eventBus);
             this.measurements = new Measurements(scene, this.logger, this.eventBus, this.collaboration);
 
@@ -70,7 +65,6 @@ export class App {
 
     /**
      * Wires up high-level event communication between major, decoupled modules.
-     * This is the core of the coordinator's responsibility.
      * @private
      */
     _setupCrossModuleIntegration() {
@@ -83,14 +77,64 @@ export class App {
         });
 
         // Handle the deletion of a measurement.
-        // App.js decides whether the action is local or needs to be synced.
         this.eventBus.on('measurement:delete', (payload) => {
             if (this.collaboration?.isConnected()) {
-                // If in a session, the collaboration module handles the synced deletion.
                 this.collaboration.deleteAnnotation(payload.id);
             } else {
-                // Otherwise, the measurements module performs a local-only delete.
                 this.measurements.clearMeasurement(payload.id);
+            }
+        });
+
+        // --- Collaboration UI Requests (NEW) ---
+
+        // Listen for request from CollaborationUI to create a room
+        this.eventBus.on('collaboration:create:request', async (payload) => {
+            if (!this.collaboration) return;
+            try {
+                this.collaboration.userName = payload.userName;
+                await this.collaboration.connect();
+                // Success is handled by the 'collaboration:connected' event
+            } catch (error) {
+                this.logger.error('App: Failed to create room', error);
+                // Tell UI to hide progress bar and show error
+                this.eventBus.emit('ui:progress:end');
+                this.eventBus.emit('ui:notification:show', {
+                    message: 'Erro ao criar sala',
+                    type: 'error'
+                });
+            }
+        });
+
+        // Listen for request from CollaborationUI to join a room
+        this.eventBus.on('collaboration:join:request', async (payload) => {
+            if (!this.collaboration) return;
+            try {
+                this.collaboration.userName = payload.userName;
+                await this.collaboration.connect(payload.roomId);
+                // Success is handled by the 'collaboration:connected' event
+            } catch (error) {
+                this.logger.error('App: Failed to join room', error);
+                // Tell UI to hide progress bar and show error
+                this.eventBus.emit('ui:progress:end');
+                this.eventBus.emit('ui:notification:show', {
+                    message: 'Erro ao entrar na sala',
+                    type: 'error'
+                });
+            }
+        });
+
+        // Listen for request from CollaborationUI to disconnect
+        this.eventBus.on('collaboration:disconnect:request', () => {
+            if (this.collaboration) {
+                this.collaboration.disconnect();
+            }
+        });
+        
+        // Listen for request from CollaborationUI to get peer data
+        this.eventBus.on('collaboration:peers:request', () => {
+            if (this.collaboration) {
+                const peerData = this.collaboration.getPeerProfileData();
+                this.eventBus.emit('collaboration:peers:update', peerData);
             }
         });
 
