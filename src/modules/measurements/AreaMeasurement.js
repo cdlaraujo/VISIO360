@@ -5,7 +5,16 @@ import { BasePolygonMeasurement } from './common/BasePolygonMeasurement.js';
 
 export class AreaMeasurement extends BasePolygonMeasurement {
     constructor(scene, materials, logger, eventBus) {
-        super(scene, materials, logger, eventBus, 'area');
+        // Passa os materiais específicos para a classe base
+        super(
+            scene, 
+            materials, 
+            logger, 
+            eventBus, 
+            'area',                   // toolName
+            materials.areaPoint,      // pointMaterial
+            materials.areaLine        // lineMaterial
+        );
     }
 
     _finishMeasurement() {

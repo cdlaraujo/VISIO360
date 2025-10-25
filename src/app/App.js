@@ -25,7 +25,7 @@ export class App {
         this.sceneManager = new SceneManager(this.logger, this.eventBus);
         this.modelLoader = new ModelLoader(this.logger, this.eventBus);
         this.uiManager = new UIManager(this.logger, this.eventBus);
-        this.toolController = new ToolController(this.logger, this.eventBus);
+        // this.toolController = new ToolController(this.logger, this.eventBus); // <-- Movido
         this.animationLoop = new AnimationLoop(this.eventBus);
     }
 
@@ -48,6 +48,15 @@ export class App {
                 this.eventBus
             );
             
+            // --- ToolController (MODIFICADO) ---
+            // Agora o ToolController precisa de uma referência ao InteractionController
+            // para poder definir os estados de interação.
+            this.toolController = new ToolController(
+                this.logger, 
+                this.eventBus, 
+                this.interactionController // Injeta a dependência
+            );
+
             // --- Initialize Feature Modules ---
             this.collaboration = new Collaboration(scene, this.logger, this.eventBus);
             this.measurements = new Measurements(scene, this.logger, this.eventBus, this.collaboration);
@@ -68,6 +77,8 @@ export class App {
      * @private
      */
     _setupCrossModuleIntegration() {
+        // ... (toda a lógica de integração existente permanece a mesma) ...
+        
         // When a model is loaded, give its data to the Collaboration module for P2P sharing.
         this.eventBus.on('model:loaded', (payload) => {
             if (payload.modelBlob && this.collaboration) {
@@ -85,18 +96,14 @@ export class App {
             }
         });
 
-        // --- Collaboration UI Requests (NEW) ---
-
-        // Listen for request from CollaborationUI to create a room
+        // --- Collaboration UI Requests ---
         this.eventBus.on('collaboration:create:request', async (payload) => {
             if (!this.collaboration) return;
             try {
                 this.collaboration.userName = payload.userName;
                 await this.collaboration.connect();
-                // Success is handled by the 'collaboration:connected' event
             } catch (error) {
                 this.logger.error('App: Failed to create room', error);
-                // Tell UI to hide progress bar and show error
                 this.eventBus.emit('ui:progress:end');
                 this.eventBus.emit('ui:notification:show', {
                     message: 'Erro ao criar sala',
@@ -104,17 +111,13 @@ export class App {
                 });
             }
         });
-
-        // Listen for request from CollaborationUI to join a room
         this.eventBus.on('collaboration:join:request', async (payload) => {
             if (!this.collaboration) return;
             try {
                 this.collaboration.userName = payload.userName;
                 await this.collaboration.connect(payload.roomId);
-                // Success is handled by the 'collaboration:connected' event
             } catch (error) {
                 this.logger.error('App: Failed to join room', error);
-                // Tell UI to hide progress bar and show error
                 this.eventBus.emit('ui:progress:end');
                 this.eventBus.emit('ui:notification:show', {
                     message: 'Erro ao entrar na sala',
@@ -122,15 +125,11 @@ export class App {
                 });
             }
         });
-
-        // Listen for request from CollaborationUI to disconnect
         this.eventBus.on('collaboration:disconnect:request', () => {
             if (this.collaboration) {
                 this.collaboration.disconnect();
             }
         });
-        
-        // Listen for request from CollaborationUI to get peer data
         this.eventBus.on('collaboration:peers:request', () => {
             if (this.collaboration) {
                 const peerData = this.collaboration.getPeerProfileData();
