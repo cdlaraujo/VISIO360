@@ -82,7 +82,7 @@ export class AppChromeUI {
 
     _updateToolButtons(tool) {
         // Remove active class from all tool buttons
-        const toolButtons = [this.ui.measureToolBtn, this.ui.areaToolBtn, this.ui.angleToolBtn, this.ui.surfaceAreaToolBtn, this.ui.volumeToolBtn]; // <-- ADICIONADO
+        const toolButtons = [this.ui.measureToolBtn, this.ui.areaToolBtn, this.ui.angleToolBtn, this.ui.surfaceAreaToolBtn, this.ui.volumeToolBtn, this.ui.volumeBoxToolBtn]; // <-- MODIFICADO
         toolButtons.forEach(btn => {
             if (btn) btn.classList.remove('active');
         });
@@ -93,7 +93,8 @@ export class AppChromeUI {
             'area': this.ui.areaToolBtn,
             'angle': this.ui.angleToolBtn,
             'surfaceArea': this.ui.surfaceAreaToolBtn,
-            'volume': this.ui.volumeToolBtn // <-- ADICIONADO
+            'volume': this.ui.volumeToolBtn, // <-- ADICIONADO
+            'volumeBox': this.ui.volumeBoxToolBtn // <-- NOVO
         };
 
         const activeBtn = toolMap[tool];

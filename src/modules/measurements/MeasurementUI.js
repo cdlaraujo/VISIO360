@@ -27,7 +27,8 @@ export class MeasurementUI {
             'area': 'Clique para criar um polígono. Dê um duplo-clique ou pressione ESC para calcular a área.',
             'surfaceArea': 'Clique para criar um polígono. Dê um duplo-clique ou pressione ESC para calcular a área de superfície.',
             'angle': 'Clique em três pontos para medir o ângulo (o primeiro ponto é o vértice).',
-            'volume': 'Clique para criar um polígono. Dê um duplo-clique ou pressione ESC para calcular o volume (corte/aterro).' // <-- ADICIONADO
+            'volume': 'Clique para criar um polígono. Dê um duplo-clique ou pressione ESC para calcular o volume (corte/aterro).', // <-- ADICIONADO
+            'volumeBox': 'Clique em dois pontos (cantos opostos) para criar uma caixa de volume.' // <-- NOVO
         };
         this.eventBus.emit('ui:instructions:update', { text: instructions[activeTool] || '' });
     }

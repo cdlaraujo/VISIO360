@@ -100,6 +100,21 @@ export class MeasurementMaterials {
                 side: THREE.DoubleSide 
             }),
 
+            // Volume Box materials (ADICIONADO)
+            volumeBox: new THREE.MeshBasicMaterial({ 
+                color: 0x00ccff, // Ciano
+                transparent: true, 
+                opacity: 0.3, 
+                side: THREE.DoubleSide,
+                depthTest: false 
+            }),
+            volumeBoxPoint: new THREE.MeshBasicMaterial({ 
+                color: 0x00ccff, // Ciano
+                depthTest: false, 
+                depthWrite: false 
+            }),
+
+
             // Preview materials
             previewLine: new THREE.LineDashedMaterial({ 
                 color: 0xffff00, 

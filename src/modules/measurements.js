@@ -7,6 +7,7 @@ import { AreaMeasurement } from './measurements/AreaMeasurement.js';
 import { SurfaceAreaMeasurement } from './measurements/SurfaceAreaMeasurement.js';
 import { AngleMeasurement } from './measurements/AngleMeasurement.js';
 import { VolumeMeasurement } from './measurements/VolumeMeasurement.js'; // <-- 1. IMPORTAR
+import { VolumeBoxMeasurement } from './measurements/VolumeBoxMeasurement.js'; // <-- NOVO
 import { MeasurementDisposer } from './measurements/utils/MeasurementDisposer.js';
 import { MeasurementUI } from './measurements/MeasurementUI.js';
 
@@ -40,6 +41,7 @@ export class Measurements {
         this.surfaceAreaMeasurement = new SurfaceAreaMeasurement(this.measurementGroup, sharedMaterials, logger, eventBus);
         this.angleMeasurement = new AngleMeasurement(this.measurementGroup, sharedMaterials, logger, eventBus);
         this.volumeMeasurement = new VolumeMeasurement(this.measurementGroup, sharedMaterials, logger, eventBus); // <-- 2. INSTANCIAR
+        this.volumeBoxMeasurement = new VolumeBoxMeasurement(this.measurementGroup, sharedMaterials, logger, eventBus); // <-- NOVO
 
         // This new worker handles all UI-related logic for measurements
         this.measurementUI = new MeasurementUI(eventBus, this);
@@ -61,6 +63,7 @@ export class Measurements {
         this.eventBus.on('measurement:surfaceArea:completed', () => this.measurementUI.update());
         this.eventBus.on('measurement:angle:completed', () => this.measurementUI.update());
         this.eventBus.on('measurement:volume:completed', () => this.measurementUI.update()); // <-- 3. ADICIONAR LISTENER
+        this.eventBus.on('measurement:volumeBox:completed', () => this.measurementUI.update()); // <-- NOVO
         this.eventBus.on('annotation:changed', () => this.measurementUI.update());
 
         // When a tool changes, cancel any in-progress measurements.
@@ -70,6 +73,7 @@ export class Measurements {
             this.surfaceAreaMeasurement.cancelActiveMeasurement();
             this.angleMeasurement.cancelActiveMeasurement();
             this.volumeMeasurement.cancelActiveMeasurement(); // <-- 4. ADICIONAR LIMPEZA
+            this.volumeBoxMeasurement.cancelActiveMeasurement(); // <-- NOVO
         });
 
         // Handle commands to clear or delete measurements.
@@ -81,7 +85,7 @@ export class Measurements {
 
     /**
      * Gathers all finished measurements from local modules and synced annotations.
-     * @returns {{distances: Array, areas: Array, surfaceAreas: Array, angles: Array, volumes: Array}}
+     * @returns {{distances: Array, areas: Array, surfaceAreas: Array, angles: Array, volumes: Array, volumeBoxes: Array}}
      */
     getMeasurementStats() {
         const stats = {
@@ -89,7 +93,8 @@ export class Measurements {
             areas: [],
             surfaceAreas: [],
             angles: [],
-            volumes: [] // <-- 5. ADICIONAR AO STATS
+            volumes: [], // <-- 5. ADICIONAR AO STATS
+            volumeBoxes: [] // <-- NOVO
         };
 
         const isConnected = this.collaboration?.isConnected() || false;
@@ -102,6 +107,7 @@ export class Measurements {
             stats.surfaceAreas.push(...this.surfaceAreaMeasurement.getFinishedMeasurements());
             stats.angles.push(...this.angleMeasurement.getFinishedMeasurements());
             stats.volumes.push(...this.volumeMeasurement.getFinishedMeasurements()); // <-- 6. ADICIONAR AO STATS
+            stats.volumeBoxes.push(...this.volumeBoxMeasurement.getFinishedMeasurements()); // <-- NOVO
         } else {
             // If CONNECTED, the collaboration module's annotations are the unified source of truth.
             const allAnnotations = this.collaboration?.getAnnotations() || [];
@@ -114,6 +120,8 @@ export class Measurements {
                     stats.surfaceAreas.push({ id: ann.id, value: ann.surfaceArea });
                 } else if (ann.type === 'volume') { // <-- 7. ADICIONAR AO STATS DE COLABORAÇÃO
                     stats.volumes.push({ id: ann.id, value: ann.volume });
+                } else if (ann.type === 'volumeBox') { // <-- NOVO (para UI local)
+                    stats.volumeBoxes.push({ id: ann.id, value: ann.volume });
                 }
             });
         }
@@ -126,7 +134,7 @@ export class Measurements {
      * @param {string} id - The ID of the measurement to remove.
      */
     clearMeasurement(id) {
-        const modules = [this.distanceMeasurement, this.areaMeasurement, this.surfaceAreaMeasurement, this.angleMeasurement, this.volumeMeasurement]; // <-- 8. ADICIONAR AO LOOP
+        const modules = [this.distanceMeasurement, this.areaMeasurement, this.surfaceAreaMeasurement, this.angleMeasurement, this.volumeMeasurement, this.volumeBoxMeasurement]; // <-- 8. ADICIONAR AO LOOP
         for (const module of modules) {
             const measurement = module.getMeasurementById(id);
             if (measurement) {
@@ -152,7 +160,8 @@ export class Measurements {
             ...this.areaMeasurement.measurements,
             ...this.surfaceAreaMeasurement.measurements,
             ...this.angleMeasurement.measurements,
-            ...this.volumeMeasurement.measurements // <-- 9. ADICIONAR À LIMPEZA
+            ...this.volumeMeasurement.measurements, // <-- 9. ADICIONAR À LIMPEZA
+            ...this.volumeBoxMeasurement.measurements // <-- NOVO
         ];
 
         this.disposer.disposeMeasurements(allMeasurements);
@@ -162,6 +171,7 @@ export class Measurements {
         this.surfaceAreaMeasurement.measurements = [];
         this.angleMeasurement.measurements = [];
         this.volumeMeasurement.measurements = []; // <-- 10. LIMPAR ARRAY
+        this.volumeBoxMeasurement.measurements = []; // <-- NOVO
 
         this.measurementUI.update();
     }

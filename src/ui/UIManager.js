@@ -74,7 +74,8 @@ export class UIManager {
             areaToolBtn: this.ui.areaToolBtn,
             angleToolBtn: this.ui.angleToolBtn,
             surfaceAreaToolBtn: this.ui.surfaceAreaToolBtn,
-            volumeToolBtn: this.ui.volumeToolBtn, // <-- ADICIONADO
+            volumeToolBtn: this.ui.volumeToolBtn, 
+            volumeBoxToolBtn: this.ui.volumeBoxToolBtn, // <-- NOVO
             toolInstructions: this.ui.toolInstructions,
             coordinates: this.ui.coordinates,
             fpsCounter: this.ui.fpsCounter,
@@ -137,7 +138,8 @@ export class UIManager {
             areaToolBtn: document.getElementById('area-tool-btn'),
             angleToolBtn: document.getElementById('angle-tool-btn'),
             surfaceAreaToolBtn: document.getElementById('surface-area-tool-btn'),
-            volumeToolBtn: document.getElementById('volume-tool-btn'), // <-- ADICIONADO
+            volumeToolBtn: document.getElementById('volume-tool-btn'), 
+            volumeBoxToolBtn: document.getElementById('volume-box-tool-btn'), // <-- NOVO
             clearAllBtn: document.getElementById('clear-all-btn'),
 
             // Measurements panel
@@ -184,6 +186,8 @@ export class UIManager {
             this.eventBus.emit('tool:activate', { tool: 'surfaceArea' }));
         this._safeAddEventListener(this.ui.volumeToolBtn, 'click', () => // <-- ADICIONADO
             this.eventBus.emit('tool:activate', { tool: 'volume' }));
+        this._safeAddEventListener(this.ui.volumeBoxToolBtn, 'click', () => // <-- NOVO
+            this.eventBus.emit('tool:activate', { tool: 'volumeBox' }));
         this._safeAddEventListener(this.ui.clearAllBtn, 'click', () => {
             this.eventBus.emit('measurement:clear:all');
             this.eventBus.emit('collaboration:clear-all-annotations');

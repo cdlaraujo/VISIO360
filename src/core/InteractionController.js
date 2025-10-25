@@ -166,7 +166,7 @@ export class InteractionController {
 
     _onDoubleClick(event) {
         // Duplo-clique finaliza medição de área
-        if (this.currentTool === 'area' || this.currentTool === 'surfaceArea') {
+        if (this.currentTool === 'area' || this.currentTool === 'surfaceArea' || this.currentTool === 'volume') { // <--- CORRIGIDO
             event.preventDefault();
             this.eventBus.emit('measurement:area:finish');
             this.logger.info('InteractionController: Duplo-clique detectado - finalizando área.');
