@@ -81,6 +81,25 @@ export class MeasurementMaterials {
                 side: THREE.DoubleSide 
             }),
 
+            // Volume measurement materials (ADICIONADO)
+            volumePoint: new THREE.MeshBasicMaterial({ 
+                color: 0xff00ff, // Magenta
+                depthTest: false, 
+                depthWrite: false 
+            }),
+            volumeLine: new THREE.LineBasicMaterial({ 
+                color: 0xff00ff, 
+                linewidth: 3, 
+                depthTest: false, 
+                depthWrite: false 
+            }),
+            volumeHighlight: new THREE.MeshBasicMaterial({ 
+                color: 0xff00ff, 
+                transparent: true, 
+                opacity: 0.4, 
+                side: THREE.DoubleSide 
+            }),
+
             // Preview materials
             previewLine: new THREE.LineDashedMaterial({ 
                 color: 0xffff00, 

@@ -74,6 +74,7 @@ export class UIManager {
             areaToolBtn: this.ui.areaToolBtn,
             angleToolBtn: this.ui.angleToolBtn,
             surfaceAreaToolBtn: this.ui.surfaceAreaToolBtn,
+            volumeToolBtn: this.ui.volumeToolBtn, // <-- ADICIONADO
             toolInstructions: this.ui.toolInstructions,
             coordinates: this.ui.coordinates,
             fpsCounter: this.ui.fpsCounter,
@@ -136,6 +137,7 @@ export class UIManager {
             areaToolBtn: document.getElementById('area-tool-btn'),
             angleToolBtn: document.getElementById('angle-tool-btn'),
             surfaceAreaToolBtn: document.getElementById('surface-area-tool-btn'),
+            volumeToolBtn: document.getElementById('volume-tool-btn'), // <-- ADICIONADO
             clearAllBtn: document.getElementById('clear-all-btn'),
 
             // Measurements panel
@@ -180,6 +182,8 @@ export class UIManager {
             this.eventBus.emit('tool:activate', { tool: 'angle' }));
         this._safeAddEventListener(this.ui.surfaceAreaToolBtn, 'click', () => 
             this.eventBus.emit('tool:activate', { tool: 'surfaceArea' }));
+        this._safeAddEventListener(this.ui.volumeToolBtn, 'click', () => // <-- ADICIONADO
+            this.eventBus.emit('tool:activate', { tool: 'volume' }));
         this._safeAddEventListener(this.ui.clearAllBtn, 'click', () => {
             this.eventBus.emit('measurement:clear:all');
             this.eventBus.emit('collaboration:clear-all-annotations');
@@ -196,21 +200,4 @@ export class UIManager {
             element.addEventListener(event, handler);
         }
     }
-
-    // --- ALL LOGIC METHODS ARE GONE ---
-    // _togglePanel() -> GONE (in AppChromeUI)
-    // _updateToolButtons() -> GONE (in AppChromeUI)
-    // _updateInstructions() -> GONE (in AppChromeUI)
-    // _showProgressBar() -> GONE (in AppChromeUI)
-    // _hideProgressBar() -> GONE (in AppChromeUI)
-    // _updateProgressBar() -> GONE (in AppChromeUI)
-    // _showNotification() -> GONE (in AppChromeUI)
-    // ...and all CollaborationUI, ModelUI, MeasurementsPanel methods...
-    
-    // ===== PUBLIC METHODS (for other *internal* modules if needed) =====
-    // These are called by App.js or InteractionController, not event-driven
-    // (We moved them to AppChromeUI, so UIManager no longer has them)
-    
-    // updateCoordinates(x, y, z) -> GONE
-    // updateFPS(fps) -> GONE
 }

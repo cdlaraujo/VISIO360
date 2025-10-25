@@ -39,6 +39,10 @@ export class AnnotationSync {
             this._broadcastMeasurement('surfaceArea', payload.measurement);
         });
 
+        this.eventBus.on('measurement:volume:completed', (payload) => { // <-- ADICIONADO
+            this._broadcastMeasurement('volume', payload.measurement);
+        });
+
         this.eventBus.on('connection:data', (payload) => {
             if (payload.data.type === 'annotation-create') {
                 this._handleRemoteAnnotation(payload.data.annotation);
@@ -68,6 +72,9 @@ export class AnnotationSync {
             annotation.points = measurement.points.map(p => ({ x: p.x, y: p.y, z: p.z }));
         } else if (type === 'surfaceArea') {
             annotation.surfaceArea = measurement.value; // FIX: Use 'value' property
+            annotation.points = measurement.points.map(p => ({ x: p.x, y: p.y, z: p.z }));
+        } else if (type === 'volume') { // <-- ADICIONADO
+            annotation.volume = measurement.value;
             annotation.points = measurement.points.map(p => ({ x: p.x, y: p.y, z: p.z }));
         }
 
@@ -102,6 +109,8 @@ export class AnnotationSync {
             visual = this._createAreaVisual(annotation);
         } else if (annotation.type === 'surfaceArea') {
             visual = this._createSurfaceAreaVisual(annotation);
+        } else if (annotation.type === 'volume') { // <-- ADICIONADO
+            visual = this._createVolumeVisual(annotation);
         }
 
         if (visual) {
@@ -224,6 +233,36 @@ export class AnnotationSync {
         ).normalize();
         
         const label = this._createTextSprite(`${annotation.surfaceArea.toFixed(2)}m²`, '#00aaff');
+        label.position.copy(center).add(normal.multiplyScalar(0.2));
+
+        group.add(line, label);
+        return group;
+    }
+
+    // ADICIONADO
+    _createVolumeVisual(annotation) {
+        const group = new THREE.Group();
+        const points = annotation.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
+
+        const lineGeometry = new THREE.BufferGeometry().setFromPoints([...points, points[0]]);
+        const lineMaterial = new THREE.LineBasicMaterial({
+            color: 0xff00ff, // Cor do Volume
+            linewidth: 2,
+            depthTest: false
+        });
+        const line = new THREE.Line(lineGeometry, lineMaterial);
+        line.renderOrder = 998;
+
+        const center = new THREE.Vector3();
+        points.forEach(p => center.add(p));
+        center.divideScalar(points.length);
+
+        const normal = new THREE.Vector3().crossVectors(
+            new THREE.Vector3().subVectors(points[1], points[0]),
+            new THREE.Vector3().subVectors(points[2], points[0])
+        ).normalize();
+        
+        const label = this._createTextSprite(`${annotation.volume.toFixed(2)}m³`, '#ff00ff'); // Label de Volume
         label.position.copy(center).add(normal.multiplyScalar(0.2));
 
         group.add(line, label);

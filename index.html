@@ -14,19 +14,9 @@
                 <img src="/nd-logo.avif" alt="Company Logo" class="company-logo">
                 <span class="app-title">Visio3D Professional</span>
             </div>
-            <!--
-            <nav class="main-menu">
-                <button class="menu-item">Arquivo</button>
-                <button class="menu-item">Editar</button>
-                <button class="menu-item">Ver</button>
-                <button class="menu-item">Ferramentas</button>
-                <button class="menu-item">Colaboração</button>
-            </nav>
-            -->
             <div class="user-section">
                 <input type="text" id="user-name-input" class="user-name-field" placeholder="Seu nome" value="Usuário">
-                <!-- <button class="icon-btn" id="settings-btn" title="Configurações">⚙️</button> -->
-            </div>
+                </div>
         </header>
 
         <div class="tool-ribbon">
@@ -48,6 +38,10 @@
                     <button class="ribbon-btn" id="surface-area-tool-btn" title="Calcular Área de Superfície (Ctrl+S)">
                         <span class="icon">🗻</span>
                         <span class="label">Superfície</span>
+                    </button>
+                    <button class="ribbon-btn" id="volume-tool-btn" title="Calcular Volume (Corte/Aterro)">
+                        <span class="icon">🧊</span>
+                        <span class="label">Volume</span>
                     </button>
                 </div>
             </div>
@@ -92,10 +86,7 @@
         <aside class="left-panel">
             <div class="panel-header">
                 <h3>PROPRIEDADES</h3>
-                <!--
-                <button class="icon-btn-small panel-toggle-left" title="Minimizar Painel">◀</button>
-                -->
-            </div>
+                </div>
             <div class="panel-content">
                 <div id="model-info-section" class="property-group">
                     <h4>Modelo</h4>
@@ -151,10 +142,7 @@
         <aside class="right-panel">
             <div class="panel-header">
                 <h3>MEDIÇÕES</h3>
-                <!--
-                <button class="icon-btn-small panel-toggle-right" title="Minimizar Painel">▶</button>
-                -->
-            </div>
+                </div>
             <div class="panel-content">
                 <div id="measurements-panel" class="measurements-panel">
                     <div id="measurements-container"></div>
