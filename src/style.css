@@ -1105,3 +1105,35 @@ input[type="file"] {
         max-width: none;
     }
 }
+
+.measurement-item {
+    /* ... (estilos existentes) ... */
+    /* Garante que o layout flex funcione com o novo container */
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer; /* Indica que o item é clicável */
+    flex-wrap: wrap; 
+}
+
+/* Container para o valor e o nome do autor */
+.measurement-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex-grow: 1; /* Ocupa o espaço disponível */
+    padding-right: var(--spacing-sm);
+}
+
+/* Nome do autor da medição */
+.measurement-author {
+    font-size: 10px;
+    color: var(--cad-text-tertiary);
+    font-style: italic;
+}
+
+/* Botão de deletar */
+.delete-btn {
+    /* ... (estilos existentes) ... */
+    flex-shrink: 0; /* Impede o botão de encolher */
+    margin-left: auto; /* Empurra para a direita */
+}

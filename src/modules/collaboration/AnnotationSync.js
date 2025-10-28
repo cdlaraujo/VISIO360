@@ -38,6 +38,12 @@ export class AnnotationSync {
         this.eventBus.on('measurement:surfaceArea:completed', (payload) => {
             this._broadcastMeasurement('surfaceArea', payload.measurement);
         });
+        
+        // --- ADICIONADO: Listener para ângulo ---
+        this.eventBus.on('measurement:angle:completed', (payload) => {
+            this._broadcastMeasurement('angle', payload.measurement);
+        });
+        // --- FIM DA ADIÇÃO ---
 
         this.eventBus.on('measurement:volume:completed', (payload) => { // <-- ADICIONADO
             this._broadcastMeasurement('volume', payload.measurement);
@@ -72,6 +78,9 @@ export class AnnotationSync {
             annotation.points = measurement.points.map(p => ({ x: p.x, y: p.y, z: p.z }));
         } else if (type === 'surfaceArea') {
             annotation.surfaceArea = measurement.value; // FIX: Use 'value' property
+            annotation.points = measurement.points.map(p => ({ x: p.x, y: p.y, z: p.z }));
+        } else if (type === 'angle') { // --- ADICIONADO: Bloco para ângulo ---
+            annotation.value = measurement.value; // 'value' armazena o grau
             annotation.points = measurement.points.map(p => ({ x: p.x, y: p.y, z: p.z }));
         } else if (type === 'volume') { // <-- ADICIONADO
             annotation.volume = measurement.value;
@@ -109,6 +118,8 @@ export class AnnotationSync {
             visual = this._createAreaVisual(annotation);
         } else if (annotation.type === 'surfaceArea') {
             visual = this._createSurfaceAreaVisual(annotation);
+        } else if (annotation.type === 'angle') { // --- ADICIONADO: Handler para ângulo ---
+             visual = this._createAngleVisual(annotation);
         } else if (annotation.type === 'volume') { // <-- ADICIONADO
             visual = this._createVolumeVisual(annotation);
         }
@@ -268,6 +279,32 @@ export class AnnotationSync {
         group.add(line, label);
         return group;
     }
+    
+    // --- NOVO MÉTODO: Para desenhar ângulos remotos ---
+    _createAngleVisual(annotation) {
+        const group = new THREE.Group();
+        const points = annotation.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
+
+        const lineMaterial = new THREE.LineBasicMaterial({
+            color: 0xffff00, // Amarelo (cor do ângulo)
+            linewidth: 2,
+            depthTest: false
+        });
+
+        // Adiciona as duas linhas a partir do vértice (ponto 0)
+        const line1 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([points[0], points[1]]), lineMaterial);
+        const line2 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([points[0], points[2]]), lineMaterial);
+        line1.renderOrder = 998;
+        line2.renderOrder = 998;
+
+        // Adiciona o rótulo no vértice (ponto 0)
+        const label = this._createTextSprite(`${annotation.value.toFixed(2)}°`, '#ffff00');
+        label.position.copy(points[0]).add(new THREE.Vector3(0, 0.2, 0)); // Offset
+
+        group.add(line1, line2, label);
+        return group;
+    }
+    // --- FIM DO NOVO MÉTODO ---
 
     _createTextSprite(text, color) {
         const canvas = document.createElement('canvas');

@@ -10,7 +10,8 @@ export class MeasurementsPanel {
         this.eventBus = eventBus;
         this.ui = uiElements; // Receives elements: measurementsPanel, measurementsContainer
 
-        this._measurementClickHandler = null; // Store handler reference for removal
+        // --- MODIFICADO: Armazena a referência da função ---
+        this._measurementClickHandler = this._handleClick.bind(this);
 
         this._setupEventListeners();
     }
@@ -22,6 +23,40 @@ export class MeasurementsPanel {
     _setupEventListeners() {
         // Listen for the event that provides the measurement stats
         this.eventBus.on('ui:measurements:update', stats => this._updateMeasurementsUI(stats));
+
+        // --- MODIFICADO: Adiciona o ouvinte de clique UMA VEZ ---
+        if (this.ui.measurementsContainer) {
+            this.ui.measurementsContainer.addEventListener('click', this._measurementClickHandler);
+        }
+    }
+
+    /**
+     * --- NOVO MÉTODO: Lida com todos os cliques no painel ---
+     * Usa delegação de eventos.
+     * @private
+     */
+    _handleClick(event) {
+        const deleteBtn = event.target.closest('.delete-btn');
+        if (deleteBtn) {
+            // Caso 1: Clicou no botão de deletar
+            event.stopPropagation(); // Impede que o clique no item seja acionado
+            const id = deleteBtn.dataset.id;
+            if (id) {
+                // Emite um evento solicitando a exclusão
+                this.eventBus.emit('measurement:delete', { id });
+            }
+            return;
+        }
+
+        const itemEl = event.target.closest('.measurement-item');
+        if (itemEl) {
+            // Caso 2: Clicou em qualquer outro lugar do item
+            const id = itemEl.dataset.id;
+            if (id) {
+                // Emite um evento solicitando o destaque
+                this.eventBus.emit('measurement:highlight', { id });
+            }
+        }
     }
 
     /**
@@ -52,10 +87,16 @@ export class MeasurementsPanel {
             items.forEach(item => {
                 const itemEl = document.createElement('div');
                 itemEl.className = 'measurement-item';
+                // --- MODIFICADO: Adiciona data-id ao item e o span do autor ---
+                itemEl.dataset.id = item.id;
                 itemEl.innerHTML = `
-                    <span class="measurement-value">${item.value.toFixed(2)}${unit}</span>
+                    <div class="measurement-item-info">
+                        <span class="measurement-value">${item.value.toFixed(2)}${unit}</span>
+                        <span class="measurement-author">${item.peerName || ''}</span>
+                    </div>
                     <button class="delete-btn" data-id="${item.id}" title="Remover">×</button>
                 `;
+                // --- FIM DA MODIFICAÇÃO ---
                 groupDiv.appendChild(itemEl);
             });
 
@@ -75,26 +116,8 @@ export class MeasurementsPanel {
             el.style.display = this.ui.measurementsContainer.hasChildNodes() ? 'block' : 'none';
         });
 
-        // Add event delegation for delete buttons
-        // Remove the old listener before adding a new one to prevent duplicates
-        if (this._measurementClickHandler) {
-            this.ui.measurementsContainer.removeEventListener('click', this._measurementClickHandler);
-        }
-        
-        if (hasMeasurements) {
-            this._measurementClickHandler = (event) => {
-                if (event.target.classList.contains('delete-btn')) {
-                    const id = event.target.dataset.id;
-                    if (id) {
-                        // Emit an event requesting the deletion, App.js will handle it
-                        this.eventBus.emit('measurement:delete', { id });
-                    }
-                }
-            };
-            this.ui.measurementsContainer.addEventListener('click', this._measurementClickHandler);
-        } else {
-             this._measurementClickHandler = null; // Clear handler if no measurements
-        }
+        // --- MODIFICADO: A lógica de adicionar/remover listener foi movida ---
+        // Não é mais necessário fazer nada aqui.
     }
 
     // --- Helper functions also moved ---
