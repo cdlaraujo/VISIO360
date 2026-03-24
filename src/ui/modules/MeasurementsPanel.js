@@ -108,7 +108,8 @@ export class MeasurementsPanel {
         createGroup('Áreas Planas', stats.areas, 'm²');
         createGroup('Áreas de Superfície', stats.surfaceAreas, 'm²');
         createGroup('Ângulos', stats.angles, '°');
-        createGroup('Volumes', stats.volumes, 'm³'); // <-- ADICIONADO
+        createGroup('Volumes', stats.volumes, 'm³');
+        createGroup('Volumes (Caixa)', stats.volumeBoxes, 'm³');
 
         // Show/hide the panel container based on whether there are measurements
         this._safeUpdateElement(this.ui.measurementsPanel, el => {

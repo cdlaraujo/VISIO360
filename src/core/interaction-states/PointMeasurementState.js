@@ -10,14 +10,11 @@ export class PointMeasurementState extends BaseInteractionState {
         super(toolName, eventBus);
     }
 
-    onClick(point, intersection, interactionController) {
-        // Emite o mesmo evento que as classes de medição (Distance, Angle)
-        // já estão ouvindo. Nenhuma modificação nelas é necessária.
+    onClick(point, screenPosition, interactionController) {
+        // point is a Cesium.Cartesian3 world position
         this.eventBus.emit('measurement:point:selected', {
             point: point.clone(),
-            tool: this.toolName,
-            object: intersection.object,
-            face: intersection.face
+            tool: this.toolName
         });
     }
 }

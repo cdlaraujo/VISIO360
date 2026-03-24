@@ -14,10 +14,10 @@ import { ModelSyncManager } from './collaboration/ModelSyncManager.js';
  * Pure orchestrator for all collaboration-related functionalities.
  */
 export class Collaboration {
-    constructor(scene, logger, eventBus) {
+    constructor(viewer, logger, eventBus) {
         this.logger = logger;
         this.eventBus = eventBus;
-        this.scene = scene;
+        this.viewer = viewer;
 
         // --- 1. Instantiate All Worker Modules ---
         this.connectionManager = new ConnectionManager(logger, eventBus);
@@ -25,7 +25,7 @@ export class Collaboration {
         this.profileManager = new PeerProfileManager(this.connectionManager, logger, eventBus);
         this.fileSender = new FileTransferSender(this.connectionManager, logger, eventBus);
         this.fileReceiver = new FileTransferReceiver(this.connectionManager, logger, eventBus);
-        this.annotationSync = new AnnotationSync(scene, this.connectionManager, logger, eventBus);
+        this.annotationSync = new AnnotationSync(viewer, this.connectionManager, logger, eventBus);
         this.modelSync = new ModelSyncManager(this.connectionManager, this.fileSender, logger, eventBus);
 
         // --- 2. Wire Up Inter-Module Communication ---

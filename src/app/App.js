@@ -1,93 +1,66 @@
-import { Logger } from '../utils/Logger.js';
-import { EventBus } from './EventBus.js';
-import { SceneManager } from '../core/SceneManager.js';
-import { Renderer } from '../core/Renderer.js';
-import { ModelLoader } from '../core/ModelLoader.js';
-import { UIManager } from '../ui/UIManager.js';
-import { ToolController } from '../ui/ToolController.js';
+// src/app/App.js (Cesium version)
+
+import { Logger }                from '../utils/Logger.js';
+import { EventBus }              from './EventBus.js';
+import { CesiumViewer }          from '../core/CesiumViewer.js';
+import { ModelLoader }           from '../core/ModelLoader.js';
 import { InteractionController } from '../core/InteractionController.js';
-import { AnimationLoop } from '../core/AnimationLoop.js';
-import { Measurements } from '../modules/measurements.js';
-import { Collaboration } from '../modules/collaboration.js';
+import { UIManager }             from '../ui/UIManager.js';
+import { ToolController }        from '../ui/ToolController.js';
+import { Measurements }          from '../modules/measurements.js';
+import { Collaboration }         from '../modules/collaboration.js';
 
-/**
- * @class App
- * @description
- * The main coordinator of the entire application.
- */
 export class App {
-    constructor(container) {
-        this.container = container;
-        this.logger = new Logger('INFO');
+    constructor(containerId) {
+        this.containerId = containerId;
+        this.logger   = new Logger('INFO');
         this.eventBus = new EventBus(this.logger);
-
-        // --- Instantiate Core Systems ---
-        this.sceneManager = new SceneManager(this.logger, this.eventBus);
-        this.modelLoader = new ModelLoader(this.logger, this.eventBus);
-        this.uiManager = new UIManager(this.logger, this.eventBus);
-        // this.toolController = new ToolController(this.logger, this.eventBus); // <-- Movido
-        this.animationLoop = new AnimationLoop(this.eventBus);
     }
 
     async start() {
         this.logger.info('App: Starting...');
         try {
-            // --- Renderer and Scene Initialization ---
-            const { scene } = this.sceneManager.initialize();
-            this.renderer = new Renderer(this.container, scene, this.logger, this.eventBus);
-            const rendererComponents = this.renderer.initialize();
+            // 1 — 3D Viewer
+            const cesiumViewer = new CesiumViewer(this.containerId, this.logger, this.eventBus);
+            const { viewer } = cesiumViewer.initialize();
+            this.viewer = viewer;
 
-            // --- Initialize Core Modules ---
+            // 2 — Model Loader
+            this.modelLoader = new ModelLoader(viewer, this.logger, this.eventBus);
             this.modelLoader.initialize();
+
+            // 3 — Interaction (replaces OrbitControls + Raycaster)
+            this.interactionController = new InteractionController(viewer, this.logger, this.eventBus);
+
+            // 4 — UI
+            this.uiManager = new UIManager(this.logger, this.eventBus);
             this.uiManager.initialize();
 
-            this.interactionController = new InteractionController(
-                rendererComponents.camera,
-                rendererComponents.domElement,
-                this.logger,
-                this.eventBus
-            );
-            
-            // --- ToolController (MODIFICADO) ---
-            // Agora o ToolController precisa de uma referência ao InteractionController
-            // para poder definir os estados de interação.
-            this.toolController = new ToolController(
-                this.logger, 
-                this.eventBus, 
-                this.interactionController // Injeta a dependência
-            );
+            this.toolController = new ToolController(this.logger, this.eventBus, this.interactionController);
 
-            // --- Initialize Feature Modules ---
-            this.collaboration = new Collaboration(scene, this.logger, this.eventBus);
-            this.measurements = new Measurements(scene, this.logger, this.eventBus, this.collaboration);
+            // 5 — Feature Modules
+            this.collaboration = new Collaboration(viewer, this.logger, this.eventBus);
+            this.measurements  = new Measurements(viewer, this.logger, this.eventBus, this.collaboration);
 
-            // --- Wire up high-level integrations and start the app ---
+            // 6 — Cross-module wiring
             this._setupCrossModuleIntegration();
-            this.animationLoop.start();
 
             this.logger.info('App: Started successfully.');
         } catch (error) {
-            this.logger.error('App: A critical error occurred during initialization.', error);
+            this.logger.error('App: Critical error during initialization.', error);
             throw error;
         }
     }
 
-    /**
-     * Wires up high-level event communication between major, decoupled modules.
-     * @private
-     */
     _setupCrossModuleIntegration() {
-        // ... (toda a lógica de integração existente permanece a mesma) ...
-        
-        // When a model is loaded, give its data to the Collaboration module for P2P sharing.
+        // Store model blob for P2P sharing
         this.eventBus.on('model:loaded', (payload) => {
             if (payload.modelBlob && this.collaboration) {
-                this.logger.info(`App: Storing model data for P2P sharing.`);
-                this.collaboration.setModelData(payload.modelBlob, payload.model.name);
+                this.collaboration.setModelData(payload.modelBlob, payload.fileName);
             }
         });
 
-        // Handle the deletion of a measurement.
+        // Measurement delete: if in a room, broadcast; otherwise delete locally
         this.eventBus.on('measurement:delete', (payload) => {
             if (this.collaboration?.isConnected()) {
                 this.collaboration.deleteAnnotation(payload.id);
@@ -96,44 +69,38 @@ export class App {
             }
         });
 
-        // --- Collaboration UI Requests ---
+        // Collaboration room requests
         this.eventBus.on('collaboration:create:request', async (payload) => {
             if (!this.collaboration) return;
             try {
                 this.collaboration.userName = payload.userName;
                 await this.collaboration.connect();
-            } catch (error) {
-                this.logger.error('App: Failed to create room', error);
+            } catch (err) {
+                this.logger.error('App: Failed to create room', err);
                 this.eventBus.emit('ui:progress:end');
-                this.eventBus.emit('ui:notification:show', {
-                    message: 'Erro ao criar sala',
-                    type: 'error'
-                });
+                this.eventBus.emit('ui:notification:show', { message: 'Erro ao criar sala', type: 'error' });
             }
         });
+
         this.eventBus.on('collaboration:join:request', async (payload) => {
             if (!this.collaboration) return;
             try {
                 this.collaboration.userName = payload.userName;
                 await this.collaboration.connect(payload.roomId);
-            } catch (error) {
-                this.logger.error('App: Failed to join room', error);
+            } catch (err) {
+                this.logger.error('App: Failed to join room', err);
                 this.eventBus.emit('ui:progress:end');
-                this.eventBus.emit('ui:notification:show', {
-                    message: 'Erro ao entrar na sala',
-                    type: 'error'
-                });
+                this.eventBus.emit('ui:notification:show', { message: 'Erro ao entrar na sala', type: 'error' });
             }
         });
+
         this.eventBus.on('collaboration:disconnect:request', () => {
-            if (this.collaboration) {
-                this.collaboration.disconnect();
-            }
+            this.collaboration?.disconnect();
         });
+
         this.eventBus.on('collaboration:peers:request', () => {
             if (this.collaboration) {
-                const peerData = this.collaboration.getPeerProfileData();
-                this.eventBus.emit('collaboration:peers:update', peerData);
+                this.eventBus.emit('collaboration:peers:update', this.collaboration.getPeerProfileData());
             }
         });
 

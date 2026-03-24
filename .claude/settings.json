@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -o \".\\\\{0,200\\\\}function [A-Z][a-zA-Z]*Viewer\\\\|class [A-Z][a-zA-Z]*Viewer\" /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)",
+      "Bash(grep -o 'function lZ\\\\b.\\\\{0,500\\\\}' /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)",
+      "Bash(grep -o \"Viewer.prototype.zoomTo\\\\|Viewer=function\\\\|var Viewer\\\\b.\\\\{0,200\\\\}\" /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)",
+      "Bash(grep -o 'function Ri.\\\\{0,2000\\\\}' /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)",
+      "Bash(grep -o 'function Ri.\\\\{2000,6000\\\\}' /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)",
+      "Bash(grep -o 'function XN.\\\\{0,3000\\\\}' /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)",
+      "Bash(grep -o 'function XN\\(.\\\\{0,2000\\\\}' /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)",
+      "Bash(grep -o CesiumWidget:.{0,30} /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)",
+      "Bash(grep -o bXNb=.{0,100} /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)",
+      "Bash(grep -o 'function dC\\(.\\\\{0,3000\\\\}' /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)",
+      "Bash(grep -o 'function dC.\\\\{3000,6000\\\\}' /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)",
+      "Bash(grep -o \"function o0e.\\\\{0,500\\\\}\\\\|function s0e.\\\\{0,500\\\\}\\\\|function r0e.\\\\{0,500\\\\}\" /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)",
+      "Bash(grep -o \"ResizeObserver\\\\|resize.*r0e\\\\|r0e.*resize\\\\|_forceResize\\\\b.\\\\{0,300\\\\}\" /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)",
+      "Bash(grep -o \".\\\\{0,200\\\\}_cameraUnderground||x.setView.\\\\{0,100\\\\}\" /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)",
+      "Bash(grep -o \"\\\\bOY\\\\b[^\\(].\\\\{0,200\\\\}\\\\|OY=.\\\\{0,200\\\\}\" /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)",
+      "Bash(grep -o 'function I_e.\\\\{0,1500\\\\}' /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)",
+      "Bash(grep -o 'function LN\\(.\\\\{0,2000\\\\}' /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)",
+      "Bash(grep -o Scene:.{0,50} /c/Users/ifaca/OneDrive/Documentos/dev/VISIO360/Cesium/Cesium.js)"
+    ]
+  }
+}
