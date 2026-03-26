@@ -113,8 +113,3 @@ src-tauri/Cargo.lock
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-release
-electron
-
-Cesium

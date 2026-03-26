@@ -1,7 +1,6 @@
 // ============================================================================
 // FILE 1: src/modules/collaboration/ConnectionManager.js
 // ============================================================================
-import Peer from 'peerjs';
 
 /**
  * @class ConnectionManager

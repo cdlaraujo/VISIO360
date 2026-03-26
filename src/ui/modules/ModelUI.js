@@ -91,25 +91,26 @@ export class ModelUI {
     }
 
     _onModelLoaded(payload) {
-        const displayName = payload.fileName || payload.model?.name || 'Modelo';
-
         // Update modal info area
         this._safeUpdateElement(this.ui.modelInputArea, el => el.style.display = 'none');
         this._safeUpdateElement(this.ui.modelInfoArea, el => el.style.display = 'block');
-        this._safeUpdateElement(this.ui.currentModelName, el => el.textContent = displayName);
+        this._safeUpdateElement(this.ui.currentModelName, el => el.textContent = payload.model.name);
 
         // Update left panel model properties
         this._safeUpdateElement(this.ui.modelNameDisplay, el => {
-            el.textContent = displayName;
+            el.textContent = payload.model.name;
         });
 
+        // Get and display file extension
+        const fileName = payload.model.name || '';
+        const extension = fileName.split('.').pop().toUpperCase();
         this._safeUpdateElement(this.ui.modelFormatDisplay, el => {
-            el.textContent = payload.format || '-';
+            el.textContent = extension || '-';
         });
 
-        // Vertex count only available for Three.js meshes; Cesium entities don't support traverse
+        // Count and display vertices
         let vertexCount = 0;
-        if (payload.model && typeof payload.model.traverse === 'function') {
+        if (payload.model) {
             payload.model.traverse((child) => {
                 if (child.isMesh && child.geometry && child.geometry.attributes.position) {
                     vertexCount += child.geometry.attributes.position.count;
@@ -117,10 +118,10 @@ export class ModelUI {
             });
         }
         this._safeUpdateElement(this.ui.modelVerticesDisplay, el => {
-            el.textContent = vertexCount > 0 ? vertexCount.toLocaleString() : '—';
+            el.textContent = vertexCount > 0 ? vertexCount.toLocaleString() : '-';
         });
 
-        this.logger.info(`ModelUI: Updated UI for model - ${displayName}`);
+        this.logger.info(`ModelUI: Updated UI for model - ${payload.model.name}`);
         
         // Emit notification event
         this.eventBus.emit('ui:notification:show', { message: 'Modelo carregado com sucesso!', type: 'success' });

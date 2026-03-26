@@ -3,32 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visio360</title>
-    <script src="Cesium/Cesium.js"></script>
-    <script src="libs/peerjs.min.js"></script>
-    <script type="importmap">
-    {
-      "imports": {
-        "peerjs": "./libs/peerjs-shim.js"
-      }
-    }
-    </script>
-    <link rel="stylesheet" href="Cesium/Widgets/widgets.css" />
-    <link rel="stylesheet" href="src/style.css" />
-    <style>
-        .cesium-widget-credits { display: none !important; }
-    </style>
+    <title>Visio3D Professional - Visualizador 3D Colaborativo</title>
+    <link rel="stylesheet" href="/src/style.css" />
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
     <div class="cad-layout">
         <header class="command-bar">
             <div class="logo-section">
-                <img src="public/nd-logo.avif" alt="Company Logo" class="company-logo">
-                <span class="app-title">Visio360</span>
+                <img src="/nd-logo.avif" alt="Company Logo" class="company-logo">
+                <span class="app-title">Visio3D Professional</span>
             </div>
             <div class="user-section">
                 <input type="text" id="user-name-input" class="user-name-field" placeholder="Seu nome" value="Usuário">
-            </div>
+                </div>
         </header>
 
         <div class="tool-ribbon">
@@ -96,13 +84,13 @@
                 </div>
             </div>
         </div>
-
-        <div id="cesiumContainer"></div>
+        
+        <div id="app"></div>
 
         <aside class="left-panel">
             <div class="panel-header">
                 <h3>PROPRIEDADES</h3>
-            </div>
+                </div>
             <div class="panel-content">
                 <div id="model-info-section" class="property-group">
                     <h4>Modelo</h4>
@@ -122,15 +110,18 @@
 
                 <div id="collaboration-section" class="property-group">
                     <h4>Colaboração</h4>
+                    
                     <div id="room-connect-controls" style="display: block;">
                         <button id="create-room-btn-panel" class="btn btn-success" style="width: 100%; margin-bottom: 8px;">🚀 Criar Sala</button>
                         <button id="join-room-btn-panel" class="btn btn-secondary" style="width: 100%;">🔗 Entrar em Sala</button>
+                        
                         <div id="join-room-input" style="display: none; margin-top: 12px;">
                             <input type="text" id="room-id-input" class="input-field" placeholder="Código da sala ou URL">
                             <button id="join-room-confirm-btn" class="btn btn-primary" style="width: 100%; margin-top: 8px;">Conectar</button>
                             <button id="join-room-cancel-btn" class="btn btn-secondary" style="width: 100%; margin-top: 4px;">Cancelar</button>
                         </div>
                     </div>
+                    
                     <div id="room-status" style="display: none;">
                         <div class="property-item">
                             <label>Status:</label>
@@ -146,6 +137,7 @@
                         </div>
                         <button id="disconnect-room-btn" class="btn btn-secondary" style="width: 100%; margin-top: 12px;">Desconectar</button>
                     </div>
+                    
                     <div id="peers-container" style="margin-top: 12px; display: none;"></div>
                 </div>
             </div>
@@ -154,7 +146,7 @@
         <aside class="right-panel">
             <div class="panel-header">
                 <h3>MEDIÇÕES</h3>
-            </div>
+                </div>
             <div class="panel-content">
                 <div id="measurements-panel" class="measurements-panel">
                     <div id="measurements-container"></div>
@@ -167,10 +159,10 @@
                 <span id="tool-instructions">Pronto</span>
             </div>
             <div class="status-item">
-                <span id="coordinates">Lon: - | Lat: - | Alt: -</span>
+                <span id="coordinates">X: 0.00 | Y: 0.00 | Z: 0.00</span>
             </div>
             <div class="status-item">
-                <span id="fps-counter">FPS: -</span>
+                <span id="fps-counter">FPS: 60</span>
             </div>
         </footer>
     </div>
@@ -184,8 +176,8 @@
             <div class="modal-body">
                 <div id="model-input-area">
                     <div class="input-group">
-                        <label>URL do Modelo / 3D Tiles</label>
-                        <input type="text" id="model-url-input" class="input-field" placeholder="https://exemplo.com/tileset.json ou modelo.glb">
+                        <label>URL do Modelo</label>
+                        <input type="text" id="model-url-input" class="input-field" placeholder="https://exemplo.com/modelo.glb">
                         <button id="load-model-url-btn" class="btn btn-primary">Carregar via URL</button>
                     </div>
                     <div class="divider"><span>ou</span></div>
@@ -193,9 +185,9 @@
                         <label for="model-input" class="custom-file-upload">
                             <span class="icon">📁</span>
                             <span>Carregar do Computador</span>
-                            <span class="file-hint">.glb, .gltf, .czml</span>
+                            <span class="file-hint">.ply, .gltf, .glb</span>
                         </label>
-                        <input type="file" id="model-input" accept=".glb,.gltf,.czml" />
+                        <input type="file" id="model-input" accept=".ply,.gltf,.glb" />
                     </div>
                 </div>
                 <div id="model-info-area" style="display:none;">
@@ -206,6 +198,6 @@
         </div>
     </div>
 
-    <script type="module" src="src/main.js"></script>
+    <script type="module" src="/src/main.js"></script>
 </body>
 </html>

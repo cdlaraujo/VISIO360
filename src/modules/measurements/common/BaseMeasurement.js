@@ -1,13 +1,18 @@
-// src/modules/measurements/common/BaseMeasurement.js
-// Replaces Three.js scene/mesh with Cesium viewer.entities
+import * as THREE from 'three';
+import { createTextSprite } from '../../../utils/DrawingUtils.js'; // Assuming DrawingUtils.js exists
 
+/**
+ * @class BaseMeasurement
+ * @description An abstract base class for measurement tools.
+ * Handles common logic for point selection, visual creation, and lifecycle management.
+ */
 export class BaseMeasurement {
-    constructor(viewer, colors, logger, eventBus, toolName) {
-        this.viewer = viewer;
-        this.colors = colors;
+    constructor(scene, materials, logger, eventBus, toolName) {
+        this.scene = scene;
+        this.materials = materials;
         this.logger = logger;
         this.eventBus = eventBus;
-        this.toolName = toolName;
+        this.toolName = toolName; // e.g., 'measure', 'area'
 
         this.measurements = [];
         this.activeMeasurement = null;
@@ -24,7 +29,9 @@ export class BaseMeasurement {
     }
 
     _handlePointSelected(point) {
-        if (!this.activeMeasurement) this._startMeasurement();
+        if (!this.activeMeasurement) {
+            this._startMeasurement();
+        }
         this.activeMeasurement.points.push(point);
         this._addPointVisual(point);
     }
@@ -41,70 +48,48 @@ export class BaseMeasurement {
         this.logger.info(`${this.constructor.name}: Started new measurement.`);
     }
 
-    // --- Visual helpers (Cesium entities) ---
+    // --- Visual Creation Methods ---
 
-    _addPointVisual(point, color) {
-        const entity = this.viewer.entities.add({
-            position: point,
-            point: {
-                pixelSize: 10,
-                color: color || this.colors.point,
-                disableDepthTestDistance: Number.POSITIVE_INFINITY
-            }
-        });
-        this.activeMeasurement.visuals.points.push(entity);
-        return entity;
+    _addPointVisual(point) {
+        const geometry = new THREE.SphereGeometry(0.08, 16, 12);
+        const material = this.materials.point; // Default material
+        const sphere = new THREE.Mesh(geometry, material);
+        sphere.position.copy(point);
+        sphere.renderOrder = 999;
+        this.scene.add(sphere);
+        this.activeMeasurement.visuals.points.push(sphere);
     }
 
-    _addLineVisual(p1, p2, color) {
-        const entity = this.viewer.entities.add({
-            polyline: {
-                positions: [p1, p2],
-                width: 2,
-                material: color || this.colors.line,
-                depthFailMaterial: (color || this.colors.line).withAlpha(0.4),
-                clampToGround: false
-            }
-        });
-        this.activeMeasurement.visuals.lines.push(entity);
-        return entity;
+    _addLineVisual(startPoint, endPoint) {
+        const geometry = new THREE.BufferGeometry().setFromPoints([startPoint, endPoint]);
+        const line = new THREE.Line(geometry, this.materials.line); // Default material
+        line.renderOrder = 998;
+        this.scene.add(line);
+        this.activeMeasurement.visuals.lines.push(line);
     }
 
-    _addLabel(text, position, color) {
-        const labelColor = color
-            ? Cesium.Color.fromCssColorString(color)
-            : Cesium.Color.WHITE;
-        const entity = this.viewer.entities.add({
-            position,
-            label: {
-                text,
-                font: 'bold 14px sans-serif',
-                fillColor: labelColor,
-                outlineColor: Cesium.Color.BLACK,
-                outlineWidth: 2,
-                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                pixelOffset: new Cesium.Cartesian2(0, -10)
-            }
-        });
-        this.activeMeasurement.visuals.labels.push(entity);
-        return entity;
+    _addLabel(text, position, color = '#ffffff') {
+        const label = createTextSprite(text, color);
+        label.position.copy(position);
+        this.scene.add(label);
+        this.activeMeasurement.visuals.labels.push(label);
     }
 
-    // --- Lifecycle ---
+    // --- Lifecycle Methods ---
 
     cancelActiveMeasurement() {
         if (this.activeMeasurement && !this.activeMeasurement.finished) {
+            // The disposer will handle removing visuals from the scene
             this.eventBus.emit('measurement:delete', { id: this.activeMeasurement.id });
             this.activeMeasurement = null;
+            this.logger.info(`${this.constructor.name}: Active measurement cancelled.`);
         }
     }
 
     getFinishedMeasurements() {
         return this.measurements
             .filter(m => m.finished)
-            .map(m => ({ id: m.id, value: m.value ?? 0 }));
+            .map(m => ({ id: m.id, value: m.value })); // Expects a 'value' property
     }
 
     getMeasurementById(id) {
